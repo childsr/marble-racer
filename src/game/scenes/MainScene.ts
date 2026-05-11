@@ -8,6 +8,20 @@ interface Part {
     w: number;
     h: number;
     baseAngle: number;
+    color: number;
+    friction: number;
+}
+
+interface SerializedPart {
+    id: string;
+    type: Part['type'];
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    baseAngle: number;
+    color: number;
+    friction: number;
 }
 
 export class MainScene extends Phaser.Scene {
@@ -17,6 +31,9 @@ export class MainScene extends Phaser.Scene {
   private parts: Part[] = [];
   private selectedPart: Part | null = null;
   private selectionBox!: Phaser.GameObjects.Rectangle;
+
+  private history: SerializedPart[][] = [];
+  private historyIndex: number = -1;
 
   private marbles: MatterJS.BodyType[] = [];
   private marbleGraphics: Phaser.GameObjects.Shape[] = [];
@@ -95,12 +112,14 @@ export class MainScene extends Phaser.Scene {
           this.setMode(this.mode === 'play' ? 'edit' : 'play');
       } else if (action === 'add-part') {
           this.addNewPart(payload);
+          this.saveState();
       } else if (action === 'delete-part') {
           if (this.selectedPart) {
               this.matter.world.remove(this.selectedPart.body);
               this.selectedPart.graphic.destroy();
               this.parts = this.parts.filter(p => p !== this.selectedPart);
               this.selectPart(null);
+              this.saveState();
           }
       } else if (action === 'rotate-part') {
           if (this.selectedPart) {
@@ -108,6 +127,7 @@ export class MainScene extends Phaser.Scene {
               this.matter.body.setAngle(this.selectedPart.body, this.selectedPart.baseAngle);
               this.selectedPart.graphic.setRotation(this.selectedPart.baseAngle);
               this.updateSelectionBox();
+              this.saveState();
           }
       } else if (action === 'scale-part') {
           if (this.selectedPart) {
@@ -116,7 +136,7 @@ export class MainScene extends Phaser.Scene {
               // For pins keep proportional, otherwise just lengthen the part
               const newH = this.selectedPart.type === 'pin' ? this.selectedPart.h * factor : this.selectedPart.h;
               
-              const type = this.selectedPart.type;
+              const { type, color, friction } = this.selectedPart;
               const x = this.selectedPart.graphic.x;
               const y = this.selectedPart.graphic.y;
               const angle = this.selectedPart.baseAngle;
@@ -125,9 +145,28 @@ export class MainScene extends Phaser.Scene {
               this.selectedPart.graphic.destroy();
               this.parts = this.parts.filter(p => p !== this.selectedPart);
               
-              const newPart = this.createPart(type, x, y, newW, newH, angle);
+              const newPart = this.createPart(type, x, y, newW, newH, angle, undefined, color, friction);
               this.selectPart(newPart);
+              this.saveState();
           }
+      } else if (action === 'change-part-property') {
+          if (this.selectedPart) {
+              if (payload.color !== undefined) {
+                  this.selectedPart.color = payload.color;
+                  this.selectedPart.graphic.fillColor = payload.color;
+              }
+              if (payload.friction !== undefined) {
+                  this.selectedPart.friction = payload.friction;
+                  this.selectedPart.body.friction = payload.friction;
+              }
+              this.notifyState();
+          }
+      } else if (action === 'save-state') {
+          this.saveState();
+      } else if (action === 'undo') {
+          this.undo();
+      } else if (action === 'redo') {
+          this.redo();
       } else if (action === 'reset-marbles') {
           this.resetMarbles();
       } else if (action === 'shake-marbles') {
@@ -166,7 +205,11 @@ export class MainScene extends Phaser.Scene {
       window.dispatchEvent(new CustomEvent('phaser-state-change', {
           detail: {
               mode: this.mode,
-              hasSelection: !!this.selectedPart
+              hasSelection: !!this.selectedPart,
+              canUndo: this.historyIndex > 0,
+              canRedo: this.historyIndex < this.history.length - 1,
+              selectedPartColor: this.selectedPart?.color,
+              selectedPartFriction: this.selectedPart?.friction
           }
       }));
   }
@@ -206,6 +249,12 @@ export class MainScene extends Phaser.Scene {
     this.input.on('drag', (pointer: any, gameObject: any, dragX: number, dragY: number) => {
         if (this.mode === 'edit') {
             gameObject.emit('custom-drag', pointer, dragX, dragY);
+        }
+    });
+
+    this.input.on('dragend', (pointer: any, gameObject: any) => {
+        if (this.mode === 'edit') {
+            this.saveState();
         }
     });
 
@@ -252,40 +301,59 @@ export class MainScene extends Phaser.Scene {
       if (part) this.selectPart(part);
   }
 
-  private createPart(type: any, x: number, y: number, w: number, h: number, angle: number) {
+  private createPart(type: any, x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number, friction?: number) {
       let body: MatterJS.BodyType;
       let graphic: Phaser.GameObjects.Shape;
+      
+      if (color === undefined) {
+          if (type === 'spinner') color = 0xff5252;
+          else if (type.startsWith('flipper')) color = 0xffeb3b;
+          else if (type === 'bin') color = 0x8E9299;
+          else if (type === 'pin') color = 0x4fc3f7;
+          else color = 0xffffff;
+      }
+      if (friction === undefined) {
+          friction = 0;
+      }
 
       if (type === 'pin') {
           body = this.matter.add.circle(x, y, w, { 
               isStatic: true, 
-              friction: 0,
+              friction: friction,
               restitution: 0.8,
               label: 'pin'
           });
-          graphic = this.add.circle(x, y, w, 0x4fc3f7);
+          graphic = this.add.circle(x, y, w, color);
       } else {
           body = this.matter.add.rectangle(x, y, w, h, {
               isStatic: true,
               angle: angle,
-              friction: 0,
+              friction: friction,
               restitution: type.startsWith('flipper') ? 1.2 : 0.5,
               label: type
           });
           
-          let color = 0xffffff;
-          if (type === 'spinner') color = 0xff5252;
-          else if (type.startsWith('flipper')) color = 0xffeb3b;
-          else if (type === 'bin') color = 0x8E9299;
-
           graphic = this.add.rectangle(x, y, w, h, color);
           graphic.setRotation(angle);
       }
 
-      graphic.setInteractive({ cursor: 'pointer' });
+      const hitPadding = 20;
+      if (type === 'pin') {
+          graphic.setInteractive({
+              hitArea: new Phaser.Geom.Circle(w, w, w + hitPadding),
+              hitAreaCallback: Phaser.Geom.Circle.Contains,
+              cursor: 'pointer'
+          });
+      } else {
+          graphic.setInteractive({
+              hitArea: new Phaser.Geom.Rectangle(-hitPadding, -hitPadding, w + (hitPadding * 2), h + (hitPadding * 2)),
+              hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+              cursor: 'pointer'
+          });
+      }
       this.input.setDraggable(graphic);
 
-      const part: Part = { id: Math.random().toString(), type, x, y, w, h, angle, body, graphic, baseAngle: angle } as any;
+      const part: Part = { id: id || Math.random().toString(), type, x, y, w, h, angle, body, graphic, baseAngle: angle, color, friction } as any;
 
       graphic.on('custom-drag', (pointer: any, dragX: number, dragY: number) => {
           if (this.mode !== 'edit') return;
@@ -366,6 +434,53 @@ export class MainScene extends Phaser.Scene {
       return this.createPart('ramp', midX, midY, distance, thickness, angle);
   }
 
+  private applyState(state: SerializedPart[]) {
+      this.parts.forEach(p => {
+          this.matter.world.remove(p.body);
+          p.graphic.destroy();
+      });
+      this.parts = [];
+      this.selectPart(null);
+
+      state.forEach(s => {
+          this.createPart(s.type, s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color, s.friction);
+      });
+  }
+
+  private saveState() {
+      const state = this.parts.map(p => ({
+          id: p.id,
+          type: p.type,
+          x: p.graphic.x,
+          y: p.graphic.y,
+          w: p.w,
+          h: p.h,
+          baseAngle: p.baseAngle,
+          color: p.color,
+          friction: p.friction
+      }));
+      this.history = this.history.slice(0, this.historyIndex + 1);
+      this.history.push(state);
+      this.historyIndex = this.history.length - 1;
+      this.notifyState();
+  }
+
+  private undo() {
+      if (this.historyIndex > 0) {
+          this.historyIndex--;
+          this.applyState(this.history[this.historyIndex]);
+          this.notifyState();
+      }
+  }
+
+  private redo() {
+      if (this.historyIndex < this.history.length - 1) {
+          this.historyIndex++;
+          this.applyState(this.history[this.historyIndex]);
+          this.notifyState();
+      }
+  }
+
   private setupCourse() {
     // Basic landscape course to jump into editing
     this.createRampBetween(50, 150, 800, 250, 15);
@@ -404,6 +519,8 @@ export class MainScene extends Phaser.Scene {
         const x = binStartX + i * binWidth;
         this.createPart('bin', x, binY + 40, 15, 80, 0);
     }
+    
+    this.saveState();
   }
 
   private spawnMarbles() {
