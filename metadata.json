@@ -1,0 +1,6 @@
+{
+  "name": "Marble Racer",
+  "description": "A realistic 2D marble run simulator featuring physics-based interactions, multiple marble types, and tablet-optimized touch controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
