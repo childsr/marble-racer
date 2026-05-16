@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import Phaser from 'phaser';
-import { MainScene } from './scenes/MainScene';
+import React, { useEffect, useRef } from "react";
+import Phaser from "phaser";
+import { MainScene } from "./scenes/MainScene";
 
 export const GameContainer: React.FC = () => {
   const gameRef = useRef<HTMLDivElement>(null);
@@ -11,24 +11,27 @@ export const GameContainer: React.FC = () => {
 
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
-      width: '100%',
-      height: '100%',
+      width: "100%",
+      height: "100%",
       parent: gameRef.current,
+      audio: {
+        noAudio: true,
+      },
       physics: {
-        default: 'matter',
+        default: "matter",
         matter: {
           gravity: { x: 0, y: 1 },
           debug: false, // Set to true to see hitboxes
-        }
+        },
       },
       scene: [MainScene],
-      backgroundColor: '#151619',
+      backgroundColor: "#151619",
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
         width: 1920,
-        height: 1080
-      }
+        height: 1080,
+      },
     };
 
     gameInstance.current = new Phaser.Game(config);
@@ -39,9 +42,9 @@ export const GameContainer: React.FC = () => {
   }, []);
 
   return (
-    <div 
+    <div
       id="phaser-game-container"
-      ref={gameRef} 
+      ref={gameRef}
       className="w-full h-full overflow-hidden bg-[#151619]"
     />
   );
