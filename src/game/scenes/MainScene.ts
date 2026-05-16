@@ -209,7 +209,12 @@ export class MainScene extends Phaser.Scene {
               canUndo: this.historyIndex > 0,
               canRedo: this.historyIndex < this.history.length - 1,
               selectedPartColor: this.selectedPart?.color,
-              selectedPartFriction: this.selectedPart?.friction
+              selectedPartFriction: this.selectedPart?.friction,
+              selectedPartX: this.selectedPart?.graphic.x,
+              selectedPartY: this.selectedPart?.graphic.y,
+              selectedPartId: this.selectedPart?.id,
+              stageWidth: this.scale.width,
+              stageHeight: this.scale.height
           }
       }));
   }

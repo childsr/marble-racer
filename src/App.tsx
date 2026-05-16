@@ -15,6 +15,8 @@ export default function App() {
   const [canRedo, setCanRedo] = useState(false);
   const [selectedColor, setSelectedColor] = useState<number | null>(null);
   const [selectedFriction, setSelectedFriction] = useState<number | null>(null);
+  const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+  const [panelSide, setPanelSide] = useState<'left' | 'right'>('right');
 
   useEffect(() => {
     const handleStateChange = (e: any) => {
@@ -25,10 +27,22 @@ export default function App() {
       if (d.hasOwnProperty('canRedo')) setCanRedo(d.canRedo);
       if (d.hasOwnProperty('selectedPartColor')) setSelectedColor(d.selectedPartColor);
       if (d.hasOwnProperty('selectedPartFriction')) setSelectedFriction(d.selectedPartFriction);
+      
+      if (d.selectedPartId && d.selectedPartId !== selectedPartId) {
+        setSelectedPartId(d.selectedPartId);
+        // Decide which side to put the panel on
+        if (d.selectedPartX > d.stageWidth / 2) {
+          setPanelSide('left');
+        } else {
+          setPanelSide('right');
+        }
+      } else if (!d.hasSelection) {
+        setSelectedPartId(null);
+      }
     };
     window.addEventListener('phaser-state-change', handleStateChange);
     return () => window.removeEventListener('phaser-state-change', handleStateChange);
-  }, []);
+  }, [selectedPartId]);
 
   const sendAction = (action: string, payload?: any) => {
     window.dispatchEvent(new CustomEvent('phaser-editor-action', { detail: { action, payload } }));
@@ -132,11 +146,12 @@ export default function App() {
         
         {mode === 'edit' && hasSelection && (
           <motion.div 
+            key={selectedPartId}
             drag
             dragMomentum={false}
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="absolute top-4 right-4 z-20 flex flex-col gap-3 p-4 bg-[#1a1b1e]/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/10 min-w-[280px]"
+            className={`absolute top-4 ${panelSide === 'right' ? 'right-4' : 'left-4'} z-20 flex flex-col gap-3 p-4 bg-[#1a1b1e]/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/10 min-w-[280px]`}
           >
             <div className="flex items-center justify-between cursor-move handle mb-1">
               <div className="flex items-center gap-2 text-white/50 hover:text-white/80 transition-colors">
