@@ -4,13 +4,14 @@
  */
 
 import { GameContainer } from "./game/GameContainer";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Play,
   Edit,
   Trash2,
   PlusCircle,
   RotateCw,
+  RotateCcw,
   RefreshCw,
   Maximize2,
   Minimize2,
@@ -18,16 +19,22 @@ import {
   Redo2,
   Settings,
   GripHorizontal,
+  Plus,
+  ChevronDown,
+  X,
+  TrendingDown,
+  Pin,
+  Flag,
 } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function App() {
+  const dragConstraintsRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"play" | "edit">("edit");
   const [hasSelection, setHasSelection] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [selectedColor, setSelectedColor] = useState<number | null>(null);
-  const [selectedFriction, setSelectedFriction] = useState<number | null>(null);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const [panelSide, setPanelSide] = useState<"left" | "right">("right");
 
@@ -36,6 +43,13 @@ export default function App() {
     number | null
   >(null);
   const [selectedSpinnerDir, setSelectedSpinnerDir] = useState<1 | -1>(1);
+
+  const [selectedPartType, setSelectedPartType] = useState<string | null>(null);
+  const [selectedPartW, setSelectedPartW] = useState<number | null>(null);
+  const [selectedPartH, setSelectedPartH] = useState<number | null>(null);
+  const [finishList, setFinishList] = useState<{ color: number; place: number }[]>([]);
+
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleStateChange = (e: any) => {
@@ -46,8 +60,6 @@ export default function App() {
       if (d.hasOwnProperty("canRedo")) setCanRedo(d.canRedo);
       if (d.hasOwnProperty("selectedPartColor"))
         setSelectedColor(d.selectedPartColor);
-      if (d.hasOwnProperty("selectedPartFriction"))
-        setSelectedFriction(d.selectedPartFriction);
       if (d.hasOwnProperty("hasSpinnerSelected"))
         setHasSpinnerSelected(d.hasSpinnerSelected);
       if (d.hasOwnProperty("selectedPartSpinnerSpeed")) {
@@ -57,6 +69,14 @@ export default function App() {
           if (s < 0) setSelectedSpinnerDir(-1);
           else if (s > 0) setSelectedSpinnerDir(1);
         }
+      }
+      if (d.hasOwnProperty("selectedPartType")) setSelectedPartType(d.selectedPartType);
+      if (d.hasOwnProperty("selectedPartW")) setSelectedPartW(d.selectedPartW);
+      if (d.hasOwnProperty("selectedPartH")) setSelectedPartH(d.selectedPartH);
+      if (d.hasOwnProperty("finishList")) {
+        setFinishList([...(d.finishList || [])]);
+      } else if (d.mode === "edit") {
+        setFinishList([]);
       }
 
       if (d.selectedPartId && d.selectedPartId !== selectedPartId) {
@@ -69,6 +89,9 @@ export default function App() {
         }
       } else if (!d.hasSelection) {
         setSelectedPartId(null);
+        setSelectedPartType(null);
+        setSelectedPartW(null);
+        setSelectedPartH(null);
       }
     };
 
@@ -239,15 +262,21 @@ export default function App() {
         <div className="flex gap-2">
           <button
             onClick={() => sendAction("toggle-mode")}
-            className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all shadow-lg ${mode === "play" ? "bg-green-500 text-white" : "bg-white/10 text-white hover:bg-white/20"}`}
+            className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all shadow-lg text-white cursor-pointer ${
+              mode === "edit"
+                ? "bg-emerald-600 hover:bg-emerald-500"
+                : "bg-blue-600 hover:bg-blue-500"
+            }`}
           >
-            <Play size={20} /> Play
-          </button>
-          <button
-            onClick={() => sendAction("toggle-mode")}
-            className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all shadow-lg ${mode === "edit" ? "bg-blue-500 text-white" : "bg-white/10 text-white hover:bg-white/20"}`}
-          >
-            <Edit size={20} /> Edit
+            {mode === "edit" ? (
+              <>
+                <Play size={20} /> Play
+              </>
+            ) : (
+              <>
+                <Edit size={20} /> Edit
+              </>
+            )}
           </button>
         </div>
 
@@ -282,25 +311,13 @@ export default function App() {
             <div className="w-px h-8 bg-white/20 my-auto mx-2 shrink-0" />
 
             <button
-              onClick={() => sendAction("add-part", "ramp")}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full font-medium transition-all shadow-lg shrink-0"
+              onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full font-medium transition-all shadow-lg shrink-0 cursor-pointer ${
+                isAddMenuOpen ? "bg-blue-600 text-white font-semibold" : "bg-white/10 hover:bg-white/20 text-white"
+               }`}
             >
-              <PlusCircle size={18} />{" "}
-              <span className="hidden sm:inline">Ramp</span>
-            </button>
-            <button
-              onClick={() => sendAction("add-part", "pin")}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full font-medium transition-all shadow-lg shrink-0"
-            >
-              <PlusCircle size={18} />{" "}
-              <span className="hidden sm:inline">Pin</span>
-            </button>
-            <button
-              onClick={() => sendAction("add-part", "spinner")}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full font-medium transition-all shadow-lg shrink-0"
-            >
-              <PlusCircle size={18} />{" "}
-              <span className="hidden sm:inline">Spinner</span>
+              <Plus size={18} />
+              <span>Add</span>
             </button>
           </div>
         )}
@@ -323,12 +340,203 @@ export default function App() {
         )}
       </header>
 
-      <main className="w-full flex-1 relative overflow-hidden bg-[#0a0a0a]">
+      <main
+        ref={dragConstraintsRef}
+        className="w-full flex-1 relative overflow-hidden bg-[#0a0a0a]"
+      >
         <GameContainer />
+
+        {/* Finishing Order Leaderboard Overlay */}
+        {mode === "play" && finishList.length > 0 && (
+          <div className="absolute top-6 right-6 z-10 pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-4 shadow-2xl flex flex-col items-center gap-2 min-w-[90px]"
+            >
+              <div className="text-[9px] font-bold text-emerald-400 tracking-wider uppercase font-sans flex items-center gap-1.5 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Finished
+              </div>
+              <div className="flex flex-col gap-2">
+                {finishList.map((item) => {
+                  const hexColor = "#" + item.color.toString(16).padStart(6, "0");
+                  let badgeClass = "bg-white/10 text-white/95 border border-white/5";
+                  let rankText = `${item.place}:`;
+                  if (item.place === 1) {
+                    badgeClass = "bg-amber-500/20 text-amber-300 border border-amber-500/35 font-bold";
+                  } else if (item.place === 2) {
+                    badgeClass = "bg-slate-300/20 text-slate-200 border border-slate-300/35";
+                  } else if (item.place === 3) {
+                    badgeClass = "bg-amber-700/20 text-amber-600/90 border border-amber-700/30";
+                  }
+
+                  return (
+                    <motion.div
+                      key={item.place}
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-sm font-bold font-mono tracking-wide ${badgeClass}`}
+                    >
+                      <span className="min-w-[1rem] text-right">{rankText}</span>
+                      <div
+                        className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-inner shrink-0"
+                        style={{ backgroundColor: hexColor }}
+                      />
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {mode === "edit" && isAddMenuOpen && (
+          <motion.div
+            key="add-parts-window"
+            drag
+            dragConstraints={dragConstraintsRef}
+            dragElastic={0}
+            dragMomentum={false}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className={`absolute top-4 ${panelSide === "right" ? "left-4" : "right-4"} z-20 flex flex-col gap-3 p-4 bg-[#1a1b1e]/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/10 min-w-[280px]`}
+          >
+            <div className="flex items-center justify-between cursor-move handle mb-1">
+              <div className="flex items-center gap-2 text-white/50 hover:text-white/80 transition-colors">
+                <GripHorizontal size={16} />
+                <span className="text-xs font-semibold uppercase tracking-wider animate-pulse [animation-duration:2s]">
+                  Add Object
+                </span>
+              </div>
+              <button
+                onClick={() => setIsAddMenuOpen(false)}
+                className="text-white/40 hover:text-white/80 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  sendAction("add-part", "ramp");
+                  setIsAddMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
+                    <g transform="rotate(-15 20 20)">
+                      <rect x="6" y="19" width="28" height="5" rx="1.5" fill="#000" opacity="0.3" />
+                      <rect x="6" y="17" width="28" height="5" rx="1.5" fill="url(#rampGrad)" stroke="#64748b" strokeWidth="1" />
+                      <line x1="8" y1="18.5" x2="32" y2="18.5" stroke="#fff" strokeWidth="0.75" strokeLinecap="round" opacity="0.5" />
+                    </g>
+                    <defs>
+                      <linearGradient id="rampGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#f8fafc" />
+                        <stop offset="100%" stopColor="#cbd5e1" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-semibold text-white leading-none">Ramp</span>
+                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Guide and slide marbles</span>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "pin");
+                  setIsAddMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
+                    <circle cx="20" cy="20" r="9" fill="#4fc3f7" opacity="0.15" />
+                    <circle cx="20" cy="20" r="7" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+                    <circle cx="20" cy="20" r="5" fill="url(#pinSphereGrad)" stroke="#4fc3f7" strokeWidth="0.5" />
+                    <circle cx="18" cy="18" r="1.2" fill="#fff" opacity="0.8" />
+                    <defs>
+                      <radialGradient id="pinSphereGrad" cx="35%" cy="35%" r="65%">
+                        <stop offset="0%" stopColor="#e0f7fa" />
+                        <stop offset="30%" stopColor="#4fc3f7" />
+                        <stop offset="100%" stopColor="#0288d1" />
+                      </radialGradient>
+                    </defs>
+                  </svg>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-semibold text-white leading-none">Pin</span>
+                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Peg for bouncy interactions</span>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "spinner");
+                  setIsAddMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0 animate-spin [animation-duration:3s]">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
+                    <circle cx="20" cy="20" r="14" fill="none" stroke="#ff5252" strokeWidth="1" strokeDasharray="3 3" opacity="0.25" />
+                    <rect x="7" y="18" width="26" height="4" rx="1.5" fill="url(#spinnerGrad)" stroke="#b91c1c" strokeWidth="0.75" />
+                    <circle cx="20" cy="20" r="3.5" fill="#1e293b" stroke="#f87171" strokeWidth="1" />
+                    <circle cx="20" cy="20" r="1.2" fill="#f87171" />
+                    <defs>
+                      <linearGradient id="spinnerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#fca5a5" />
+                        <stop offset="40%" stopColor="#ff5252" />
+                        <stop offset="100%" stopColor="#b91c1c" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-semibold text-white leading-none">Spinner</span>
+                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Active rotating obstacle</span>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "finish_zone");
+                  setIsAddMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/30 rounded-lg transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
+                    <rect x="5" y="10" width="30" height="20" rx="3" fill="#00e676" fillOpacity="0.12" stroke="#00e676" strokeWidth="1.5" strokeDasharray="3 2" />
+                    <rect x="8" y="13" width="24" height="14" rx="1.5" fill="none" stroke="#00e676" strokeWidth="1" strokeOpacity="0.3" />
+                    <g transform="translate(14, 13) scale(0.6)">
+                      <line x1="4" y1="4" x2="4" y2="22" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
+                      <path d="M4.5 4 h12 v9 h-12 Z" fill="#ffffff" stroke="#ffffff" strokeWidth="0.5" />
+                      <rect x="4.5" y="4" width="4" height="4.5" fill="#111827" />
+                      <rect x="12.5" y="4" width="4" height="4.5" fill="#111827" />
+                      <rect x="8.5" y="8.5" width="4" height="4.5" fill="#111827" />
+                    </g>
+                  </svg>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-semibold text-emerald-400 leading-none">Finish Zone</span>
+                  <span className="text-[10px] text-emerald-500/80 mt-1 leading-none">Marble target accumulator</span>
+                </div>
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {mode === "edit" && hasSelection && (
           <motion.div
+            key={selectedPartId || "properties-window"}
             drag
+            dragConstraints={dragConstraintsRef}
+            dragElastic={0}
             dragMomentum={false}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -395,85 +603,148 @@ export default function App() {
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5 bg-white/5 px-3 py-2 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-white/80">
-                    Friction
-                  </span>
-                  <span className="text-xs text-white/50 w-8 text-right font-mono">
-                    {(selectedFriction || 0).toFixed(2)}
-                  </span>
+              {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "bin") && selectedPartW !== null && selectedPartH !== null && (
+                <div className="border border-white/10 rounded-lg p-3 bg-white/5 flex flex-col gap-3 font-sans">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-bold text-white/40 tracking-wider uppercase">
+                      Dimensions (px)
+                    </span>
+                    <div className="w-full h-px bg-white/10 mt-1" />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-medium text-white/80">Width</span>
+                      <span className="font-mono text-white/60">{Math.round(selectedPartW)}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="20"
+                      max="600"
+                      step="5"
+                      value={selectedPartW}
+                      onChange={(e) => {
+                        const w = parseInt(e.target.value, 10);
+                        sendAction("change-part-property", { w });
+                      }}
+                      onMouseUp={() => sendAction("save-state")}
+                      onTouchEnd={() => sendAction("save-state")}
+                      className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                    />
+                  </div>
+
+                  {selectedPartType !== "ramp" && (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-medium text-white/80">Height</span>
+                        <span className="font-mono text-white/60">{Math.round(selectedPartH)}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="300"
+                        step="5"
+                        value={selectedPartH}
+                        onChange={(e) => {
+                          const h = parseInt(e.target.value, 10);
+                          sendAction("change-part-property", { h });
+                        }}
+                        onMouseUp={() => sendAction("save-state")}
+                        onTouchEnd={() => sendAction("save-state")}
+                        className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                      />
+                    </div>
+                  )}
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={selectedFriction || 0}
-                  onChange={(e) =>
-                    sendAction("change-part-property", {
-                      friction: parseFloat(e.target.value),
-                    })
-                  }
-                  onMouseUp={() => sendAction("save-state")}
-                  onTouchEnd={() => sendAction("save-state")}
-                  className="w-full accent-blue-500"
-                />
-              </div>
+              )}
 
               {hasSpinnerSelected && (
-                <div className="flex flex-col gap-1.5 bg-white/5 px-3 py-2 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-white/80">
-                      Speed
+                <div className="border border-white/10 rounded-lg p-2 bg-white/5 flex flex-col gap-1 font-sans">
+                  {/* Spinner Title with Horizontal Divider */}
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-bold text-white/40 tracking-wider uppercase">
+                      Spinner
                     </span>
-                    <span className="text-xs text-white/50 w-8 text-right font-mono">
-                      {getSpeedFraction(
-                        selectedSpinnerSpeed !== null &&
-                          selectedSpinnerSpeed !== undefined
-                          ? selectedSpinnerSpeed
-                          : 0.25,
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 mt-1">
-                    <button
-                      onClick={() => handleMagnitudeChange(-0.125)}
-                      className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded font-bold text-center h-8"
-                    >
-                      -
-                    </button>
-                    <span className="text-xs text-white/80 flex-1 text-center font-mono py-1 rounded bg-black/20">
-                      Rotations/sec
-                    </span>
-                    <button
-                      onClick={() => handleMagnitudeChange(0.125)}
-                      className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded font-bold text-center h-8"
-                    >
-                      +
-                    </button>
+                    <div className="w-full h-px bg-white/10 mt-1" />
                   </div>
 
-                  <div className="w-full h-px bg-white/10 my-2" />
+                  {/* Split Layout */}
+                  <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-stretch">
+                    {/* Speed Controls */}
+                    <div className="flex flex-col items-center justify-between text-center min-h-[74px]">
+                      <span className="text-xs font-medium text-white/80">
+                        Speed
+                      </span>
 
-                  <div className="flex items-center justify-between pointer-events-none mb-1">
-                    <span className="text-sm font-medium text-white/80">
-                      Direction
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDirectionChange(1)}
-                      className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${selectedSpinnerDir === 1 ? "bg-blue-500 text-white" : "bg-white/10 text-white/70 hover:bg-white/20"}`}
-                    >
-                      Clockwise
-                    </button>
-                    <button
-                      onClick={() => handleDirectionChange(-1)}
-                      className={`flex-1 py-1 rounded text-xs font-medium transition-colors ${selectedSpinnerDir === -1 ? "bg-blue-500 text-white" : "bg-white/10 text-white/70 hover:bg-white/20"}`}
-                    >
-                      Counter
-                    </button>
+                      <div className="flex items-center justify-center gap-1 my-0.5 w-full">
+                        <button
+                          onClick={() => handleMagnitudeChange(-0.125)}
+                          className="w-8 h-8 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 active:bg-white/20 flex items-center justify-center text-sm font-bold text-white transition-all select-none cursor-pointer"
+                          title="Decrease speed"
+                        >
+                          -
+                        </button>
+                        <span className="text-xs font-semibold tracking-wide text-white min-w-[32px] text-center font-mono select-none">
+                          {getSpeedFraction(
+                            selectedSpinnerSpeed !== null &&
+                              selectedSpinnerSpeed !== undefined
+                              ? selectedSpinnerSpeed
+                              : 0.25,
+                          )}
+                        </span>
+                        <button
+                          onClick={() => handleMagnitudeChange(0.125)}
+                          className="w-8 h-8 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 active:bg-white/20 flex items-center justify-center text-sm font-bold text-white transition-all select-none cursor-pointer"
+                          title="Increase speed"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <span className="text-[10px] text-white/40 block leading-tight">
+                        (rotations/sec)
+                      </span>
+                    </div>
+
+                    {/* Vertical Divider */}
+                    <div className="w-px bg-white/10 h-full" />
+
+                    {/* Direction Controls */}
+                    <div className="flex flex-col items-center justify-between text-center min-h-[74px]">
+                      <span className="text-xs font-medium text-white/80">
+                        Direction
+                      </span>
+
+                      <div className="flex items-center gap-1 my-0.5 w-full">
+                        <button
+                          onClick={() => handleDirectionChange(-1)}
+                          className={`flex-1 h-8 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                            selectedSpinnerDir === -1
+                              ? "bg-blue-500/20 border-blue-400 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
+                              : "border-white/20 bg-white/5 text-white/60 hover:bg-white/10 hover:border-white/30"
+                          }`}
+                          title="Counterclockwise"
+                        >
+                          <RotateCcw size={15} />
+                        </button>
+                        <button
+                          onClick={() => handleDirectionChange(1)}
+                          className={`flex-1 h-8 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                            selectedSpinnerDir === 1
+                              ? "bg-blue-500/20 border-blue-400 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
+                              : "border-white/20 bg-white/5 text-white/60 hover:bg-white/10 hover:border-white/30"
+                          }`}
+                          title="Clockwise"
+                        >
+                          <RotateCw size={15} />
+                        </button>
+                      </div>
+
+                      {/* Invisible placeholder to key the vertical sizing perfectly */}
+                      <span className="text-[10px] text-transparent leading-tight select-none">
+                        (rotations/sec)
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}

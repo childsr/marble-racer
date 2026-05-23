@@ -1,30 +1,12 @@
 import Phaser from "phaser";
+import { Part, SerializedPart } from "../parts/types";
+import { createRamp } from "../parts/Ramp";
+import { createPin } from "../parts/Pin";
+import { createSpinner, updateSpinner } from "../parts/Spinner";
+import { createBin } from "../parts/Bin";
+import { createFinishZone } from "../parts/FinishZone";
 
-interface Part {
-  id: string;
-  type: "ramp" | "pin" | "spinner" | "bin";
-  graphic: Phaser.GameObjects.Shape;
-  body: MatterJS.BodyType;
-  w: number;
-  h: number;
-  baseAngle: number;
-  color: number;
-  friction: number;
-  spinnerSpeed?: number;
-}
-
-interface SerializedPart {
-  id: string;
-  type: Part["type"];
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  baseAngle: number;
-  color: number;
-  friction: number;
-  spinnerSpeed?: number;
-}
+const MARBLE_RESTITUTION = 1.0;
 
 export class MainScene extends Phaser.Scene {
   private mode: "play" | "edit" = "edit";
@@ -49,6 +31,11 @@ export class MainScene extends Phaser.Scene {
     0xff4444, 0x44ff44, 0x4444ff, 0xffff44, 0xff44ff, 0x44ffff, 0xff8844,
     0x8844ff,
   ];
+  private finishList: { color: number; place: number }[] = [];
+  private marblesToRemove: MatterJS.BodyType[] = [];
+  private finishedMarblesSet: Set<MatterJS.BodyType> = new Set();
+  private activeGlows: Phaser.GameObjects.Arc[] = [];
+  private particles: any;
 
   constructor() {
     super("MainScene");
@@ -72,10 +59,28 @@ export class MainScene extends Phaser.Scene {
     this.boxSelectionVisual.setVisible(false);
 
     // Initial Layout setup once
-    this.setupCourse();
+    const saved = localStorage.getItem("physics_sandbox_level_state");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          this.applyState(parsed);
+          this.history = [parsed];
+          this.historyIndex = 0;
+          this.notifyState();
+        } else {
+          this.setupCourse();
+        }
+      } catch (e) {
+        console.error("Failed to load state from localStorage", e);
+        this.setupCourse();
+      }
+    } else {
+      this.setupCourse();
+    }
 
     // Particles for collisions
-    const particles = this.add.particles(0, 0, "flare", {
+    this.particles = this.add.particles(0, 0, "flare", {
       speed: { min: 10, max: 50 },
       scale: { start: 0.1, end: 0 },
       alpha: { start: 1, end: 0 },
@@ -88,12 +93,25 @@ export class MainScene extends Phaser.Scene {
       if (this.mode !== "play") return;
       event.pairs.forEach((pair: any) => {
         const { bodyA, bodyB } = pair;
+
+        const parentA = bodyA.parent || bodyA;
+        const parentB = bodyB.parent || bodyB;
+
+        const partA = this.parts.find((p) => p.body === parentA);
+        const partB = this.parts.find((p) => p.body === parentB);
+
+        const isBodyAMarble = this.marbles.includes(parentA) || parentA.label === "marble";
+        const isBodyBMarble = this.marbles.includes(parentB) || parentB.label === "marble";
+
+        const isBodyAFinish = (partA && partA.type === "finish_zone") || parentA.label === "finish_zone" || bodyA.label === "finish_zone";
+        const isBodyBFinish = (partB && partB.type === "finish_zone") || parentB.label === "finish_zone" || bodyB.label === "finish_zone";
+
         const isPinMarble =
-          (bodyA.label === "pin" && bodyB.label === "marble") ||
-          (bodyB.label === "pin" && bodyA.label === "marble");
+          ((parentA.label === "pin" || (partA && partA.type === "pin") || bodyA.label === "pin") && isBodyBMarble) ||
+          ((parentB.label === "pin" || (partB && partB.type === "pin") || bodyB.label === "pin") && isBodyAMarble);
         if (isPinMarble) {
-          const marble = bodyA.label === "marble" ? bodyA : bodyB;
-          particles.emitParticleAt(marble.position.x, marble.position.y, 5);
+          const marble = isBodyAMarble ? parentA : parentB;
+          this.particles.emitParticleAt(marble.position.x, marble.position.y, 5);
         }
       });
     });
@@ -197,14 +215,15 @@ export class MainScene extends Phaser.Scene {
 
         list.forEach((p) => {
           const newW = p.w * factor;
-          const newH = p.type === "pin" ? p.h * factor : p.h;
+          const newH =
+            p.type === "pin" || p.type === "finish_zone" ? p.h * factor : p.h;
 
           const dx = (p.graphic.x - cx) * factor;
           const dy = (p.graphic.y - cy) * factor;
           const nx = cx + dx;
           const ny = cy + dy;
 
-          const { type, color, friction, id } = p;
+          const { type, color, id } = p;
           const angle = p.baseAngle;
 
           this.matter.world.remove(p.body);
@@ -220,7 +239,6 @@ export class MainScene extends Phaser.Scene {
             angle,
             id,
             color,
-            friction,
             p.spinnerSpeed,
           );
           newSelection.push(newPart);
@@ -231,20 +249,48 @@ export class MainScene extends Phaser.Scene {
       }
     } else if (action === "change-part-property") {
       if (this.selectedParts.length > 0) {
+        const newSelection: Part[] = [];
         this.selectedParts.forEach((p) => {
           if (payload.color !== undefined) {
             p.color = payload.color;
             p.graphic.fillColor = payload.color;
-          }
-          if (payload.friction !== undefined) {
-            p.friction = payload.friction;
-            p.body.friction = payload.friction;
-          }
-          if (payload.spinnerSpeed !== undefined && p.type === "spinner") {
-            p.spinnerSpeed = payload.spinnerSpeed;
+            newSelection.push(p);
+          } else if (payload.w !== undefined || payload.h !== undefined) {
+            const newW = payload.w !== undefined ? payload.w : p.w;
+            const newH = payload.h !== undefined ? payload.h : p.h;
+
+            const { type, color, id, baseAngle, spinnerSpeed } = p;
+            const px = p.graphic.x;
+            const py = p.graphic.y;
+
+            this.matter.world.remove(p.body);
+            p.graphic.destroy();
+            this.parts = this.parts.filter((o) => o !== p);
+
+            const newPart = this.createPart(
+              type,
+              px,
+              py,
+              newW,
+              newH,
+              baseAngle,
+              id,
+              color,
+              spinnerSpeed,
+            );
+            newSelection.push(newPart);
+          } else {
+            if (payload.spinnerSpeed !== undefined && p.type === "spinner") {
+              p.spinnerSpeed = payload.spinnerSpeed;
+            }
+            newSelection.push(p);
           }
         });
-        this.notifyState();
+        if (payload.w !== undefined || payload.h !== undefined) {
+          this.selectParts(newSelection);
+        } else {
+          this.notifyState();
+        }
       }
     } else if (action === "save-state") {
       this.saveState();
@@ -256,22 +302,37 @@ export class MainScene extends Phaser.Scene {
       this.resetMarbles();
     } else if (action === "shake-marbles") {
       this.shakeMarbles();
+    } else if (action === "reset-template") {
+      this.parts.forEach((p) => {
+        this.matter.world.remove(p.body);
+        p.graphic.destroy();
+      });
+      this.parts = [];
+      this.selectParts([]);
+      this.setupCourse();
     }
   }
 
   private setMode(mode: "play" | "edit") {
+    this.activeGlows.forEach((g) => {
+      if (g && g.active) g.destroy();
+    });
+    this.activeGlows = [];
+
     if (mode === "play") {
       this.selectParts([]);
       this.updateSelectionBox();
     }
 
     this.mode = mode;
+    this.finishedMarblesSet.clear();
     if (mode === "edit") {
       // Remove marbles
       this.marbles.forEach((m) => this.matter.world.remove(m));
       this.marbleGraphics.forEach((g) => g.destroy());
       this.marbles = [];
       this.marbleGraphics = [];
+      this.finishList = [];
       // Reset spinners correctly
       this.parts.forEach((part) => {
         if (part.type === "spinner") {
@@ -281,6 +342,7 @@ export class MainScene extends Phaser.Scene {
       });
     } else {
       // Switch to play mode
+      this.finishList = [];
       this.spawnMarbles();
     }
     this.notifyState();
@@ -311,7 +373,6 @@ export class MainScene extends Phaser.Scene {
           canUndo: this.historyIndex > 0,
           canRedo: this.historyIndex < this.history.length - 1,
           selectedPartColor: sp?.color,
-          selectedPartFriction: sp?.friction,
           selectedPartSpinnerSpeed: sp?.spinnerSpeed,
           hasSpinnerSelected,
           selectedPartX: cx,
@@ -319,6 +380,10 @@ export class MainScene extends Phaser.Scene {
           selectedPartId: sp?.id,
           stageWidth: this.scale.width,
           stageHeight: this.scale.height,
+          selectedPartType: sp?.type,
+          selectedPartW: sp?.w,
+          selectedPartH: sp?.h,
+          finishList: [...this.finishList],
         },
       }),
     );
@@ -328,11 +393,74 @@ export class MainScene extends Phaser.Scene {
     if (this.mode === "play") {
       this.parts.forEach((part) => {
         if (part.type === "spinner") {
-          const speed =
-            part.spinnerSpeed !== undefined ? part.spinnerSpeed : 0.25;
-          const rotPerFrame = (speed * Math.PI * 2) / 60;
-          this.matter.body.setAngle(part.body, part.body.angle + rotPerFrame);
-          part.graphic.setRotation(part.body.angle);
+          updateSpinner(this, part);
+        }
+      });
+
+      // Manual geometric overlap check to ensure the marble is completely inside the finish zone
+      const marblesToDestroy: { marble: MatterJS.BodyType; color: number }[] = [];
+
+      this.marbles.forEach((marble) => {
+        // Only process marbles that haven't finished yet
+        if (this.finishedMarblesSet.has(marble)) return;
+
+        this.parts.forEach((part) => {
+          if (part.type === "finish_zone") {
+            const cos = Math.cos(-part.baseAngle);
+            const sin = Math.sin(-part.baseAngle);
+            const rx = marble.position.x - part.graphic.x;
+            const ry = marble.position.y - part.graphic.y;
+            const localX = rx * cos - ry * sin;
+            const localY = rx * sin + ry * cos;
+            const marbleRadius = 14;
+            const isCompletelyInside = 
+              (Math.abs(localX) + marbleRadius) <= part.w / 2 && 
+              (Math.abs(localY) + marbleRadius) <= part.h / 2;
+            if (isCompletelyInside) {
+              const idx = this.marbles.indexOf(marble);
+              if (idx !== -1) {
+                const graphic = this.marbleGraphics[idx];
+                const color = (graphic as Phaser.GameObjects.Arc).fillColor;
+                
+                // Add to finish list scoreboard immediately
+                this.finishList.push({ color, place: this.finishList.length + 1 });
+                this.notifyState();
+
+                this.finishedMarblesSet.add(marble);
+                marblesToDestroy.push({ marble, color });
+              }
+            }
+          }
+        });
+      });
+
+      // Destroy the finished marbles instantly without delay!
+      marblesToDestroy.forEach(({ marble, color }) => {
+        const currentIdx = this.marbles.indexOf(marble);
+        if (currentIdx !== -1) {
+          const currentGraphic = this.marbleGraphics[currentIdx];
+          if (currentGraphic) {
+            currentGraphic.destroy();
+          }
+
+          // Play explosive particle burst upon despawn/removal
+          const expl = this.add.particles(0, 0, "flare", {
+            speed: { min: 100, max: 350 },
+            scale: { start: 0.35, end: 0 },
+            alpha: { start: 1, end: 0 },
+            lifespan: { min: 350, max: 700 },
+            gravityY: 450,
+            blendMode: "ADD",
+            tint: color,
+          });
+          expl.explode(45, marble.position.x, marble.position.y);
+          this.time.delayedCall(850, () => {
+            expl.destroy();
+          });
+
+          this.matter.world.remove(marble);
+          this.marbles.splice(currentIdx, 1);
+          this.marbleGraphics.splice(currentIdx, 1);
         }
       });
 
@@ -501,13 +629,15 @@ export class MainScene extends Phaser.Scene {
       part = this.createPart("pin", centerX, centerY, 14, 14, 0);
     } else if (type === "spinner") {
       part = this.createPart("spinner", centerX, centerY, 300, 25, 0);
+    } else if (type === "finish_zone") {
+      part = this.createPart("finish_zone", centerX, centerY, 150, 80, 0);
     }
 
     if (part) this.selectParts([part]);
   }
 
   private createPart(
-    type: any,
+    type: Part["type"],
     x: number,
     y: number,
     w: number,
@@ -515,84 +645,26 @@ export class MainScene extends Phaser.Scene {
     angle: number,
     id?: string,
     color?: number,
-    friction?: number,
     spinnerSpeed?: number,
   ) {
-    let body: MatterJS.BodyType;
-    let graphic: Phaser.GameObjects.Shape;
+    const partId = id || Math.random().toString();
+    let part: Part;
 
-    if (color === undefined) {
-      if (type === "spinner") color = 0xff5252;
-      else if (type === "bin") color = 0x8e9299;
-      else if (type === "pin") color = 0x4fc3f7;
-      else color = 0xffffff;
-    }
-    if (friction === undefined) {
-      friction = 0;
-    }
-    if (spinnerSpeed === undefined && type === "spinner") {
-      spinnerSpeed = 0.25;
-    }
-
-    if (type === "pin") {
-      body = this.matter.add.circle(x, y, w, {
-        isStatic: true,
-        friction: friction,
-        restitution: 0.8,
-        label: "pin",
-      });
-      graphic = this.add.circle(x, y, w, color);
+    if (type === "ramp") {
+      part = createRamp(this, x, y, w, h, angle, partId, color);
+    } else if (type === "pin") {
+      part = createPin(this, x, y, w, h, angle, partId, color);
+    } else if (type === "spinner") {
+      part = createSpinner(this, x, y, w, h, angle, partId, color, spinnerSpeed);
+    } else if (type === "bin") {
+      part = createBin(this, x, y, w, h, angle, partId, color);
+    } else if (type === "finish_zone") {
+      part = createFinishZone(this, x, y, w, h, angle, partId, color);
     } else {
-      body = this.matter.add.rectangle(x, y, w, h, {
-        isStatic: true,
-        angle: angle,
-        friction: friction,
-        restitution: 0.5,
-        label: type,
-      });
-
-      graphic = this.add.rectangle(x, y, w, h, color);
-      graphic.setRotation(angle);
+      throw new Error(`Unknown part type: ${type}`);
     }
 
-    const hitPadding = 40;
-    if (type === "pin") {
-      graphic.setInteractive({
-        hitArea: new Phaser.Geom.Circle(w, w, w + hitPadding),
-        hitAreaCallback: Phaser.Geom.Circle.Contains,
-        cursor: "pointer",
-      });
-    } else {
-      graphic.setInteractive({
-        hitArea: new Phaser.Geom.Rectangle(
-          -hitPadding,
-          -hitPadding,
-          w + hitPadding * 2,
-          h + hitPadding * 2,
-        ),
-        hitAreaCallback: Phaser.Geom.Rectangle.Contains,
-        cursor: "pointer",
-      });
-    }
-    this.input.setDraggable(graphic);
-
-    const part: Part = {
-      id: id || Math.random().toString(),
-      type,
-      x,
-      y,
-      w,
-      h,
-      angle,
-      body,
-      graphic,
-      baseAngle: angle,
-      color,
-      friction,
-      spinnerSpeed,
-    } as any;
-
-    graphic.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+    part.graphic.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (this.mode !== "edit") return;
       const add =
         pointer.event.ctrlKey ||
@@ -709,7 +781,6 @@ export class MainScene extends Phaser.Scene {
         s.baseAngle,
         s.id,
         s.color,
-        s.friction,
         s.spinnerSpeed,
       );
     });
@@ -725,19 +796,32 @@ export class MainScene extends Phaser.Scene {
       h: p.h,
       baseAngle: p.baseAngle,
       color: p.color,
-      friction: p.friction,
       spinnerSpeed: p.spinnerSpeed,
     }));
     this.history = this.history.slice(0, this.historyIndex + 1);
     this.history.push(state);
     this.historyIndex = this.history.length - 1;
+    this.saveToLocalStorage(state);
     this.notifyState();
+  }
+
+  private saveToLocalStorage(state: SerializedPart[]) {
+    try {
+      localStorage.setItem(
+        "physics_sandbox_level_state",
+        JSON.stringify(state),
+      );
+    } catch (e) {
+      console.error("Failed to save state to localStorage", e);
+    }
   }
 
   private undo() {
     if (this.historyIndex > 0) {
       this.historyIndex--;
-      this.applyState(this.history[this.historyIndex]);
+      const state = this.history[this.historyIndex];
+      this.applyState(state);
+      this.saveToLocalStorage(state);
       this.notifyState();
     }
   }
@@ -745,7 +829,9 @@ export class MainScene extends Phaser.Scene {
   private redo() {
     if (this.historyIndex < this.history.length - 1) {
       this.historyIndex++;
-      this.applyState(this.history[this.historyIndex]);
+      const state = this.history[this.historyIndex];
+      this.applyState(state);
+      this.saveToLocalStorage(state);
       this.notifyState();
     }
   }
@@ -786,6 +872,9 @@ export class MainScene extends Phaser.Scene {
       this.createPart("bin", x, binY + 40, 15, 80, 0);
     }
 
+    // Add default Finish Zone spanning the bins at the bottom
+    this.createPart("finish_zone", 450, binY + 40, 600, 60, 0);
+
     this.saveState();
   }
 
@@ -796,7 +885,7 @@ export class MainScene extends Phaser.Scene {
       const color = this.marbleColors[i % this.marbleColors.length];
 
       const marble = this.matter.add.circle(x, y, 14, {
-        restitution: 0.6,
+        restitution: MARBLE_RESTITUTION,
         friction: 0,
         frictionAir: 0,
         mass: 1.5,
@@ -813,13 +902,20 @@ export class MainScene extends Phaser.Scene {
 
   private resetMarbles() {
     if (this.mode !== "play") return;
-    this.marbles.forEach((marble, i) => {
-      const x = 100 + (i % 4) * 30;
-      const y = 80 - Math.floor(i / 4) * 30;
-      this.matter.body.setPosition(marble, { x, y });
-      this.matter.body.setVelocity(marble, { x: 0, y: 0 });
-      this.matter.body.setAngularVelocity(marble, 0);
+    this.activeGlows.forEach((g) => {
+      if (g && g.active) g.destroy();
     });
+    this.activeGlows = [];
+
+    this.marbles.forEach((m) => this.matter.world.remove(m));
+    this.marbleGraphics.forEach((g) => g.destroy());
+    this.marbles = [];
+    this.marbleGraphics = [];
+    this.marblesToRemove = [];
+    this.finishedMarblesSet.clear();
+    this.finishList = [];
+    this.spawnMarbles();
+    this.notifyState();
   }
 
   private shakeMarbles() {
