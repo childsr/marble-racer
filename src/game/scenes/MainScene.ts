@@ -5,6 +5,8 @@ import { createPin } from "../parts/Pin";
 import { createSpinner, updateSpinner } from "../parts/Spinner";
 import { createBin } from "../parts/Bin";
 import { createFinishZone } from "../parts/FinishZone";
+import { createMarble } from "../parts/Marble";
+import { createScatterGate } from "../parts/ScatterGate";
 
 const MARBLE_RESTITUTION = 1.0;
 
@@ -14,7 +16,19 @@ export class MainScene extends Phaser.Scene {
 
   private parts: Part[] = [];
   private selectedParts: Part[] = [];
-  private selectionBoxes: Phaser.GameObjects.Rectangle[] = [];
+  private selectionBoxes: Phaser.GameObjects.Shape[] = [];
+
+  private clipboard: {
+    type: Part["type"];
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    baseAngle: number;
+    color: number;
+    spinnerSpeed?: number;
+  }[] = [];
+  private pasteCount = 0;
 
   private isBoxSelecting = false;
   private boxSelectStart = { x: 0, y: 0 };
@@ -113,6 +127,47 @@ export class MainScene extends Phaser.Scene {
           const marble = isBodyAMarble ? parentA : parentB;
           this.particles.emitParticleAt(marble.position.x, marble.position.y, 5);
         }
+
+        const isScatterGateA = bodyA.label === "scatter_gate_sensor";
+        const isScatterGateB = bodyB.label === "scatter_gate_sensor";
+
+        if (isScatterGateA && isBodyBMarble) {
+          const marble = parentB;
+          this.bendMarbleDirection(marble);
+          const gatePart = partA;
+          if (gatePart && gatePart.type === "scatter_gate" && gatePart.graphic) {
+            const container = gatePart.graphic as Phaser.GameObjects.Container;
+            container.list.forEach((child: any) => {
+              if (child instanceof Phaser.GameObjects.Rectangle) {
+                const origAlpha = child.alpha;
+                child.setAlpha(1.0);
+                this.tweens.add({
+                  targets: child,
+                  alpha: origAlpha,
+                  duration: 200,
+                });
+              }
+            });
+          }
+        } else if (isScatterGateB && isBodyAMarble) {
+          const marble = parentA;
+          this.bendMarbleDirection(marble);
+          const gatePart = partB;
+          if (gatePart && gatePart.type === "scatter_gate" && gatePart.graphic) {
+            const container = gatePart.graphic as Phaser.GameObjects.Container;
+            container.list.forEach((child: any) => {
+              if (child instanceof Phaser.GameObjects.Rectangle) {
+                const origAlpha = child.alpha;
+                child.setAlpha(1.0);
+                this.tweens.add({
+                  targets: child,
+                  alpha: origAlpha,
+                  duration: 200,
+                });
+              }
+            });
+          }
+        }
       });
     });
 
@@ -143,6 +198,26 @@ export class MainScene extends Phaser.Scene {
   }) {
     if (action === "toggle-mode") {
       this.setMode(this.mode === "play" ? "edit" : "play");
+    } else if (action === "select-next-part") {
+      if (this.parts.length > 0) {
+        const isBackward = !(!payload || !payload.backward);
+        const currentSelected = this.selectedParts[0];
+        let nextIdx = 0;
+        if (currentSelected) {
+          const idx = this.parts.indexOf(currentSelected);
+          if (idx !== -1) {
+            if (isBackward) {
+              nextIdx = (idx - 1 + this.parts.length) % this.parts.length;
+            } else {
+              nextIdx = (idx + 1) % this.parts.length;
+            }
+          }
+        }
+        const nextPart = this.parts[nextIdx];
+        if (nextPart) {
+          this.selectParts([nextPart]);
+        }
+      }
     } else if (action === "add-part") {
       this.addNewPart(payload);
       this.saveState();
@@ -178,9 +253,15 @@ export class MainScene extends Phaser.Scene {
           p.graphic.setPosition(Point.x, Point.y);
           this.matter.body.setPosition(p.body, Point);
 
-          p.baseAngle += angleInc;
-          this.matter.body.setAngle(p.body, p.baseAngle);
-          p.graphic.setRotation(p.baseAngle);
+          if (p.type !== "pin" && p.type !== "marble") {
+            p.baseAngle += angleInc;
+            this.matter.body.setAngle(p.body, p.baseAngle);
+            p.graphic.setRotation(p.baseAngle);
+          } else {
+            p.baseAngle = 0;
+            this.matter.body.setAngle(p.body, 0);
+            p.graphic.setRotation(0);
+          }
         });
 
         this.updateSelectionBox();
@@ -214,6 +295,18 @@ export class MainScene extends Phaser.Scene {
         const list = [...this.selectedParts];
 
         list.forEach((p) => {
+          if (p.type === "marble") {
+            const dx = (p.graphic.x - cx) * factor;
+            const dy = (p.graphic.y - cy) * factor;
+            const nx = cx + dx;
+            const ny = cy + dy;
+
+            p.graphic.setPosition(nx, ny);
+            this.matter.body.setPosition(p.body, { x: nx, y: ny });
+            newSelection.push(p);
+            return;
+          }
+
           const newW = p.w * factor;
           const newH =
             p.type === "pin" || p.type === "finish_zone" ? p.h * factor : p.h;
@@ -310,6 +403,94 @@ export class MainScene extends Phaser.Scene {
       this.parts = [];
       this.selectParts([]);
       this.setupCourse();
+    } else if (action === "deselect-all") {
+      this.selectParts([]);
+    } else if (action === "copy") {
+      if (this.selectedParts.length > 0) {
+        this.clipboard = this.selectedParts.map((p) => ({
+          type: p.type,
+          x: p.graphic.x,
+          y: p.graphic.y,
+          w: p.w,
+          h: p.h,
+          baseAngle: p.baseAngle,
+          color: p.color,
+          spinnerSpeed: p.spinnerSpeed,
+        }));
+        this.pasteCount = 0;
+      }
+    } else if (action === "cut") {
+      if (this.selectedParts.length > 0) {
+        this.clipboard = this.selectedParts.map((p) => ({
+          type: p.type,
+          x: p.graphic.x,
+          y: p.graphic.y,
+          w: p.w,
+          h: p.h,
+          baseAngle: p.baseAngle,
+          color: p.color,
+          spinnerSpeed: p.spinnerSpeed,
+        }));
+        this.pasteCount = 0;
+
+        this.selectedParts.forEach((p) => {
+          this.matter.world.remove(p.body);
+          p.graphic.destroy();
+          this.parts = this.parts.filter((o) => o !== p);
+        });
+        this.selectParts([]);
+        this.saveState();
+      }
+    } else if (action === "paste") {
+      if (this.clipboard.length > 0) {
+        this.pasteCount++;
+        const offset = this.pasteCount * 15;
+        const pasted: Part[] = [];
+        this.clipboard.forEach((p) => {
+          const newPart = this.createPart(
+            p.type,
+            p.x + offset,
+            p.y + offset,
+            p.w,
+            p.h,
+            p.baseAngle,
+            undefined, // new ID
+            p.color,
+            p.spinnerSpeed
+          );
+          if (newPart) {
+            pasted.push(newPart);
+          }
+        });
+        if (pasted.length > 0) {
+          this.selectParts(pasted);
+          this.saveState();
+        }
+      }
+    } else if (action === "duplicate") {
+      if (this.selectedParts.length > 0) {
+        const duped: Part[] = [];
+        this.selectedParts.forEach((p) => {
+          const newPart = this.createPart(
+            p.type,
+            p.graphic.x + 20,
+            p.graphic.y + 20,
+            p.w,
+            p.h,
+            p.baseAngle,
+            undefined, // new ID
+            p.color,
+            p.spinnerSpeed
+          );
+          if (newPart) {
+            duped.push(newPart);
+          }
+        });
+        if (duped.length > 0) {
+          this.selectParts(duped);
+          this.saveState();
+        }
+      }
     }
   }
 
@@ -333,11 +514,14 @@ export class MainScene extends Phaser.Scene {
       this.marbles = [];
       this.marbleGraphics = [];
       this.finishList = [];
-      // Reset spinners correctly
+      // Reset spinners and restore marbles visibility
       this.parts.forEach((part) => {
         if (part.type === "spinner") {
           this.matter.body.setAngle(part.body, part.baseAngle);
           part.graphic.setRotation(part.baseAngle);
+        } else if (part.type === "marble") {
+          part.graphic.setVisible(true);
+          part.body.isSensor = true;
         }
       });
     } else {
@@ -616,6 +800,52 @@ export class MainScene extends Phaser.Scene {
         }
       }
     });
+
+    this.input.on("wheel", (pointer: Phaser.Input.Pointer, gameObjects: any[], deltaX: number, deltaY: number, deltaZ: number) => {
+      if (this.mode === "edit" && this.selectedParts.length > 0) {
+        if (pointer.event) {
+          pointer.event.preventDefault();
+          pointer.event.stopPropagation();
+        }
+
+        const angleDegrees = deltaY > 0 ? 5 : -5;
+        const angleInc = Phaser.Math.DegToRad(angleDegrees);
+
+        let cx = 0,
+          cy = 0;
+        this.selectedParts.forEach((p) => {
+          cx += p.graphic.x;
+          cy += p.graphic.y;
+        });
+        cx /= this.selectedParts.length;
+        cy /= this.selectedParts.length;
+
+        this.selectedParts.forEach((p) => {
+          const Point = Phaser.Math.RotateAround(
+            { x: p.graphic.x, y: p.graphic.y },
+            cx,
+            cy,
+            angleInc,
+          );
+          p.graphic.setPosition(Point.x, Point.y);
+          this.matter.body.setPosition(p.body, Point);
+
+          if (p.type !== "pin" && p.type !== "marble") {
+            p.baseAngle += angleInc;
+            this.matter.body.setAngle(p.body, p.baseAngle);
+            p.graphic.setRotation(p.baseAngle);
+          } else {
+            p.baseAngle = 0;
+            this.matter.body.setAngle(p.body, 0);
+            p.graphic.setRotation(0);
+          }
+        });
+
+        this.updateSelectionBox();
+        this.saveState();
+        this.notifyState();
+      }
+    });
   }
 
   private addNewPart(type: string) {
@@ -631,9 +861,33 @@ export class MainScene extends Phaser.Scene {
       part = this.createPart("spinner", centerX, centerY, 300, 25, 0);
     } else if (type === "finish_zone") {
       part = this.createPart("finish_zone", centerX, centerY, 150, 80, 0);
+    } else if (type === "marble") {
+      part = this.createPart("marble", centerX, centerY, 14, 14, 0);
+    } else if (type === "scatter_gate") {
+      part = this.createPart("scatter_gate", centerX, centerY, 50, 20, 0);
     }
 
     if (part) this.selectParts([part]);
+  }
+
+  private bendMarbleDirection(marble: MatterJS.BodyType) {
+    if (!marble || !marble.velocity) return;
+    const { x: vx, y: vy } = marble.velocity;
+    const currentAngle = Math.atan2(vy, vx);
+
+    // Bend direction by a random amount between -30 and 30 degrees
+    const randomDegrees = Phaser.Math.FloatBetween(-30, 30);
+    const shiftAngle = Phaser.Math.DegToRad(randomDegrees);
+    const newAngle = currentAngle + shiftAngle;
+
+    const speed = Math.sqrt(vx * vx + vy * vy);
+    const newVx = speed * Math.cos(newAngle);
+    const newVy = speed * Math.sin(newAngle);
+
+    this.matter.body.setVelocity(marble, { x: newVx, y: newVy });
+
+    // Emit light green/yellow decorative sparks
+    this.particles.emitParticleAt(marble.position.x, marble.position.y, 8);
   }
 
   private createPart(
@@ -660,6 +914,10 @@ export class MainScene extends Phaser.Scene {
       part = createBin(this, x, y, w, h, angle, partId, color);
     } else if (type === "finish_zone") {
       part = createFinishZone(this, x, y, w, h, angle, partId, color);
+    } else if (type === "marble") {
+      part = createMarble(this, x, y, w, h, angle, partId, color);
+    } else if (type === "scatter_gate") {
+      part = createScatterGate(this, x, y, w, h, angle, partId, color);
     } else {
       throw new Error(`Unknown part type: ${type}`);
     }
@@ -686,28 +944,27 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updateSelectionBox() {
-    while (this.selectionBoxes.length < this.selectedParts.length) {
-      const box = this.add.rectangle(0, 0, 100, 100, 0x00ff00, 0);
-      box.setStrokeStyle(4, 0x00ff00);
-      box.setDepth(100);
-      this.selectionBoxes.push(box);
-    }
-    while (this.selectionBoxes.length > this.selectedParts.length) {
-      const box = this.selectionBoxes.pop()!;
-      box.destroy();
-    }
+    this.selectionBoxes.forEach((box) => box.destroy());
+    this.selectionBoxes = [];
 
-    this.selectedParts.forEach((part, i) => {
-      const box = this.selectionBoxes[i];
-      box.setVisible(true);
-      box.setPosition(part.graphic.x, part.graphic.y);
-      box.setRotation(part.graphic.rotation);
+    this.selectedParts.forEach((part) => {
+      let shape: Phaser.GameObjects.Shape;
+      const x = part.graphic.x;
+      const y = part.graphic.y;
 
-      if (part.type === "pin") {
-        box.setSize(part.w * 2 + 10, part.w * 2 + 10);
+      if (part.type === "pin" || part.type === "marble") {
+        const radius = part.w + 5;
+        shape = this.add.circle(x, y, radius, 0x00ff00, 0);
+        shape.setStrokeStyle(2, 0x00ff00, 0.5);
+        shape.setDepth(100);
       } else {
-        box.setSize(part.w + 10, part.h + 10);
+        shape = this.add.rectangle(x, y, part.w + 10, part.h + 10, 0x00ff00, 0);
+        shape.setStrokeStyle(2, 0x00ff00, 0.5);
+        shape.setDepth(100);
+        shape.setRotation(part.graphic.rotation);
       }
+
+      this.selectionBoxes.push(shape);
     });
   }
 
@@ -875,14 +1132,23 @@ export class MainScene extends Phaser.Scene {
     // Add default Finish Zone spanning the bins at the bottom
     this.createPart("finish_zone", 450, binY + 40, 600, 60, 0);
 
+    // Add default starting marbles at the top left of the course
+    for (let i = 0; i < 8; i++) {
+      const x = 100 + (i % 4) * 35;
+      const y = 100 - Math.floor(i / 4) * 35;
+      const color = this.marbleColors[i % this.marbleColors.length];
+      this.createPart("marble", x, y, 14, 14, 0, undefined, color);
+    }
+
     this.saveState();
   }
 
   private spawnMarbles() {
-    for (let i = 0; i < this.numMarbles; i++) {
-      const x = 100 + (i % 4) * 30;
-      const y = 80 - Math.floor(i / 4) * 30;
-      const color = this.marbleColors[i % this.marbleColors.length];
+    const marbleParts = this.parts.filter((p) => p.type === "marble");
+    marbleParts.forEach((part) => {
+      const x = part.graphic.x;
+      const y = part.graphic.y;
+      const color = part.color;
 
       const marble = this.matter.add.circle(x, y, 14, {
         restitution: MARBLE_RESTITUTION,
@@ -897,7 +1163,10 @@ export class MainScene extends Phaser.Scene {
 
       this.marbles.push(marble);
       this.marbleGraphics.push(graphic);
-    }
+
+      part.graphic.setVisible(false);
+      part.body.isSensor = true;
+    });
   }
 
   private resetMarbles() {

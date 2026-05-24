@@ -25,11 +25,39 @@ import {
   TrendingDown,
   Pin,
   Flag,
+  Scissors,
+  Copy,
+  Clipboard,
+  Layers,
 } from "lucide-react";
 import { motion } from "motion/react";
 
+const getPartTypeName = (type: string | null): string => {
+  if (!type) return "";
+  switch (type) {
+    case "ramp":
+      return "Ramp";
+    case "pin":
+      return "Pin";
+    case "spinner":
+      return "Spinner";
+    case "bin":
+      return "Bin";
+    case "finish_zone":
+      return "Finish Zone";
+    case "marble":
+      return "Marble";
+    case "scatter_gate":
+      return "Scatter Gate";
+    default:
+      return type.charAt(0).toUpperCase() + type.slice(1);
+  }
+};
+
 export default function App() {
   const dragConstraintsRef = useRef<HTMLDivElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
   const [mode, setMode] = useState<"play" | "edit">("edit");
   const [hasSelection, setHasSelection] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
@@ -50,6 +78,25 @@ export default function App() {
   const [finishList, setFinishList] = useState<{ color: number; place: number }[]>([]);
 
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: PointerEvent) => {
+      if (!isAddMenuOpen) return;
+      if (
+        addMenuRef.current &&
+        !addMenuRef.current.contains(e.target as Node) &&
+        addButtonRef.current &&
+        !addButtonRef.current.contains(e.target as Node)
+      ) {
+        setIsAddMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideClick);
+    };
+  }, [isAddMenuOpen]);
 
   useEffect(() => {
     const handleStateChange = (e: any) => {
@@ -127,6 +174,78 @@ export default function App() {
           sendAction("redo");
           return;
         }
+
+        if (mode === "edit") {
+          if (event.code === "KeyC") {
+            event.preventDefault();
+            sendAction("copy");
+            return;
+          } else if (event.code === "KeyX") {
+            event.preventDefault();
+            sendAction("cut");
+            return;
+          } else if (event.code === "KeyV") {
+            event.preventDefault();
+            sendAction("paste");
+            return;
+          } else if (event.code === "KeyD") {
+            event.preventDefault();
+            sendAction("duplicate");
+            return;
+          }
+        }
+      }
+
+      if (!isCtrlOrCmd) {
+        if (mode === "play") {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            sendAction("toggle-mode");
+            return;
+          }
+        } else if (mode === "edit") {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            sendAction("toggle-mode");
+            return;
+          }
+
+          const keyLower = event.key.toLowerCase();
+          if (keyLower === "r") {
+            event.preventDefault();
+            sendAction("add-part", "ramp");
+            return;
+          }
+          if (keyLower === "p") {
+            event.preventDefault();
+            sendAction("add-part", "pin");
+            return;
+          }
+          if (keyLower === "m") {
+            event.preventDefault();
+            sendAction("add-part", "marble");
+            return;
+          }
+          if (keyLower === "s") {
+            event.preventDefault();
+            sendAction("add-part", "spinner");
+            return;
+          }
+          if (keyLower === "f") {
+            event.preventDefault();
+            sendAction("add-part", "finish_zone");
+            return;
+          }
+          if (event.key === "=" || event.code === "NumpadAdd") {
+            event.preventDefault();
+            const nextOpen = !isAddMenuOpen;
+            setIsAddMenuOpen(nextOpen);
+            if (nextOpen) {
+              sendAction("deselect-all");
+            }
+            return;
+          }
+        }
       }
 
       if (event.code === "Space") {
@@ -141,6 +260,10 @@ export default function App() {
         let changed = false;
 
         switch (event.code) {
+          case "Tab":
+            event.preventDefault();
+            sendAction("select-next-part", { backward: event.shiftKey });
+            return;
           case "Backspace":
           case "Delete":
             event.preventDefault();
@@ -167,11 +290,13 @@ export default function App() {
             changed = true;
             break;
           case "Period": // . or > (Clockwise)
+            if (selectedPartType === "pin" || selectedPartType === "marble") return;
             event.preventDefault();
             sendAction("rotate-part", rotateAmount);
             changed = true;
             break;
           case "Comma": // , or < (Counterclockwise)
+            if (selectedPartType === "pin" || selectedPartType === "marble") return;
             event.preventDefault();
             sendAction("rotate-part", -rotateAmount);
             changed = true;
@@ -212,7 +337,7 @@ export default function App() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [mode, hasSelection]);
+  }, [mode, hasSelection, isAddMenuOpen]);
 
   const sendAction = (action: string, payload?: any) => {
     window.dispatchEvent(
@@ -311,7 +436,14 @@ export default function App() {
             <div className="w-px h-8 bg-white/20 my-auto mx-2 shrink-0" />
 
             <button
-              onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+              ref={addButtonRef}
+              onClick={() => {
+                const nextOpen = !isAddMenuOpen;
+                setIsAddMenuOpen(nextOpen);
+                if (nextOpen) {
+                  sendAction("deselect-all");
+                }
+              }}
               className={`flex items-center gap-2 px-5 py-2 rounded-full font-medium transition-all shadow-lg shrink-0 cursor-pointer ${
                 isAddMenuOpen ? "bg-blue-600 text-white font-semibold" : "bg-white/10 hover:bg-white/20 text-white"
                }`}
@@ -394,6 +526,7 @@ export default function App() {
 
         {mode === "edit" && isAddMenuOpen && (
           <motion.div
+            ref={addMenuRef}
             key="add-parts-window"
             drag
             dragConstraints={dragConstraintsRef}
@@ -403,7 +536,7 @@ export default function App() {
             onMouseDown={(e) => e.stopPropagation()}
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className={`absolute top-4 ${panelSide === "right" ? "left-4" : "right-4"} z-20 flex flex-col gap-3 p-4 bg-[#1a1b1e]/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/10 min-w-[280px]`}
+            className="absolute top-4 right-4 z-20 flex flex-col gap-3 p-4 bg-[#1a1b1e]/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/10 min-w-[280px]"
           >
             <div className="flex items-center justify-between cursor-move handle mb-1">
               <div className="flex items-center gap-2 text-white/50 hover:text-white/80 transition-colors">
@@ -477,6 +610,32 @@ export default function App() {
               </button>
               <button
                 onClick={() => {
+                  sendAction("add-part", "marble");
+                  setIsAddMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
+                    <circle cx="20" cy="20" r="10" fill="#ff4444" opacity="0.15" />
+                    <circle cx="20" cy="20" r="8" fill="url(#marbleSphereGrad)" stroke="#ff4444" strokeWidth="0.5" />
+                    <circle cx="17.5" cy="17.5" r="1.5" fill="#fff" opacity="0.8" />
+                    <defs>
+                      <radialGradient id="marbleSphereGrad" cx="35%" cy="35%" r="65%">
+                        <stop offset="0%" stopColor="#ffdcd1" />
+                        <stop offset="40%" stopColor="#ff4444" />
+                        <stop offset="100%" stopColor="#991b1b" />
+                      </radialGradient>
+                    </defs>
+                  </svg>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-semibold text-white leading-none">Marble</span>
+                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Starting physics marbles</span>
+                </div>
+              </button>
+              <button
+                onClick={() => {
                   sendAction("add-part", "spinner");
                   setIsAddMenuOpen(false);
                 }}
@@ -527,6 +686,29 @@ export default function App() {
                   <span className="text-[10px] text-emerald-500/80 mt-1 leading-none">Marble target accumulator</span>
                 </div>
               </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "scatter_gate");
+                  setIsAddMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/10 hover:border-yellow-500/30 rounded-lg transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
+                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" />
+                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" />
+                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" />
+                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" />
+                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#fff59d" opacity="0.4" />
+                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" />
+                    <line x1="12" y1="20" x2="28" y2="20" stroke="#fdeb1d" strokeWidth="1" />
+                  </svg>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-semibold text-yellow-500 leading-none">Scatter Gate</span>
+                  <span className="text-[10px] text-yellow-600/80 mt-1 leading-none">Force field deflecting marbles</span>
+                </div>
+              </button>
             </div>
           </motion.div>
         )}
@@ -548,40 +730,44 @@ export default function App() {
               <div className="flex items-center gap-2 text-white/50 hover:text-white/80 transition-colors">
                 <GripHorizontal size={16} />
                 <span className="text-xs font-semibold uppercase tracking-wider">
-                  Properties
+                  {selectedPartType ? `${getPartTypeName(selectedPartType)} ` : ""}Properties
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => sendAction("rotate-part", 15)}
-                className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium transition-all text-sm"
-              >
-                <RotateCw size={16} /> +15°
-              </button>
-              <button
-                onClick={() => sendAction("rotate-part", -15)}
-                className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium transition-all text-sm"
-              >
-                <RotateCw size={16} className="transform -scale-x-100" /> -15°
-              </button>
-            </div>
+            {selectedPartType !== "marble" && selectedPartType !== "pin" && (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => sendAction("rotate-part", 15)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium transition-all text-sm"
+                >
+                  <RotateCw size={16} /> +15°
+                </button>
+                <button
+                  onClick={() => sendAction("rotate-part", -15)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium transition-all text-sm"
+                >
+                  <RotateCw size={16} className="transform -scale-x-100" /> -15°
+                </button>
+              </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => sendAction("scale-part", 1)}
-                className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium transition-all text-sm"
-              >
-                <Maximize2 size={16} /> Enlarge
-              </button>
-              <button
-                onClick={() => sendAction("scale-part", -1)}
-                className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium transition-all text-sm"
-              >
-                <Minimize2 size={16} /> Shrink
-              </button>
-            </div>
+            {selectedPartType !== "marble" && (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => sendAction("scale-part", 1)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium transition-all text-sm"
+                >
+                  <Maximize2 size={16} /> Enlarge
+                </button>
+                <button
+                  onClick={() => sendAction("scale-part", -1)}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium transition-all text-sm"
+                >
+                  <Minimize2 size={16} /> Shrink
+                </button>
+              </div>
+            )}
 
             <div className="flex flex-col gap-2 mt-2">
               <div className="flex items-center justify-between bg-white/5 px-3 py-2 rounded-lg">
@@ -603,7 +789,7 @@ export default function App() {
                 />
               </div>
 
-              {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "bin") && selectedPartW !== null && selectedPartH !== null && (
+              {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "bin" || selectedPartType === "scatter_gate") && selectedPartW !== null && selectedPartH !== null && (
                 <div className="border border-white/10 rounded-lg p-3 bg-white/5 flex flex-col gap-3 font-sans">
                   <div className="flex flex-col items-center">
                     <span className="text-[10px] font-bold text-white/40 tracking-wider uppercase">
@@ -633,7 +819,7 @@ export default function App() {
                     />
                   </div>
 
-                  {selectedPartType !== "ramp" && (
+                  {selectedPartType !== "ramp" && selectedPartType !== "scatter_gate" && (
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-center text-xs">
                         <span className="font-medium text-white/80">Height</span>
@@ -748,6 +934,42 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="w-full h-px bg-white/10 my-1" />
+
+            <div className="flex flex-col gap-1.5 mb-1">
+              <span className="text-[10px] font-bold text-white/40 tracking-wider uppercase text-center mb-0.5">Editor Actions</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => sendAction("cut")}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg font-medium transition-all text-xs select-none cursor-pointer"
+                  title="Cut selection (Ctrl+X)"
+                >
+                  <Scissors size={14} /> Cut
+                </button>
+                <button
+                  onClick={() => sendAction("copy")}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg font-medium transition-all text-xs select-none cursor-pointer"
+                  title="Copy selection (Ctrl+C)"
+                >
+                  <Copy size={14} /> Copy
+                </button>
+                <button
+                  onClick={() => sendAction("paste")}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg font-medium transition-all text-xs select-none cursor-pointer"
+                  title="Paste from clipboard (Ctrl+V)"
+                >
+                  <Clipboard size={14} /> Paste
+                </button>
+                <button
+                  onClick={() => sendAction("duplicate")}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg font-medium transition-all text-xs select-none cursor-pointer"
+                  title="Duplicate selection (Ctrl+D)"
+                >
+                  <Layers size={14} /> Duplicate
+                </button>
+              </div>
             </div>
 
             <div className="w-full h-px bg-white/10 my-1" />

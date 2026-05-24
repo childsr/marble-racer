@@ -21,7 +21,7 @@ export function createPin(
 
   const graphic = scene.add.circle(x, y, w, color);
 
-  const hitPadding = 40;
+  const hitPadding = 5;
   graphic.setInteractive({
     hitArea: new Phaser.Geom.Circle(w, w, w + hitPadding),
     hitAreaCallback: Phaser.Geom.Circle.Contains,

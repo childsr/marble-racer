@@ -24,7 +24,7 @@ export function createSpinner(
   const graphic = scene.add.rectangle(x, y, w, h, color);
   graphic.setRotation(angle);
 
-  const hitPadding = 40;
+  const hitPadding = 5;
   graphic.setInteractive({
     hitArea: new Phaser.Geom.Rectangle(
       -hitPadding,

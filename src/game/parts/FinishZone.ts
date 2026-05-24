@@ -26,7 +26,7 @@ export function createFinishZone(
   (graphic as Phaser.GameObjects.Rectangle).setStrokeStyle(3, 0xffffff, 0.85);
   graphic.setRotation(angle);
 
-  const hitPadding = 40;
+  const hitPadding = 10;
   graphic.setInteractive({
     hitArea: new Phaser.Geom.Rectangle(
       -hitPadding,
