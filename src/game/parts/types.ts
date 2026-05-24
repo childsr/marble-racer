@@ -2,7 +2,7 @@ import Phaser from "phaser";
 
 export interface Part {
   id: string;
-  type: "ramp" | "pin" | "spinner" | "bin" | "finish_zone" | "marble" | "scatter_gate";
+  type: "ramp" | "pin" | "spinner" | "bin" | "finish_zone" | "marble" | "scatter_gate" | "boost_gate";
   graphic: any;
   body: MatterJS.BodyType;
   w: number;
@@ -10,6 +10,7 @@ export interface Part {
   baseAngle: number;
   color: number;
   spinnerSpeed?: number;
+  boostAmount?: number;
 }
 
 export interface SerializedPart {
@@ -22,4 +23,5 @@ export interface SerializedPart {
   baseAngle: number;
   color: number;
   spinnerSpeed?: number;
+  boostAmount?: number;
 }

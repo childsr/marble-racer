@@ -20,6 +20,7 @@ export function createMarble(
     restitution: 0.8,
     label: "marble_edit",
     isSensor: true, // sensor in edit mode to avoid blocking drag/drop during edits
+    mass: 1.5
   });
   body.label = "marble_edit";
 

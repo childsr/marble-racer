@@ -49,6 +49,8 @@ const getPartTypeName = (type: string | null): string => {
       return "Marble";
     case "scatter_gate":
       return "Scatter Gate";
+    case "boost_gate":
+      return "Boost Gate";
     default:
       return type.charAt(0).toUpperCase() + type.slice(1);
   }
@@ -71,6 +73,10 @@ export default function App() {
     number | null
   >(null);
   const [selectedSpinnerDir, setSelectedSpinnerDir] = useState<1 | -1>(1);
+
+  const [selectedPartBoostAmount, setSelectedPartBoostAmount] = useState<
+    number | null
+  >(null);
 
   const [selectedPartType, setSelectedPartType] = useState<string | null>(null);
   const [selectedPartW, setSelectedPartW] = useState<number | null>(null);
@@ -120,6 +126,9 @@ export default function App() {
       if (d.hasOwnProperty("selectedPartType")) setSelectedPartType(d.selectedPartType);
       if (d.hasOwnProperty("selectedPartW")) setSelectedPartW(d.selectedPartW);
       if (d.hasOwnProperty("selectedPartH")) setSelectedPartH(d.selectedPartH);
+      if (d.hasOwnProperty("selectedPartBoostAmount")) {
+        setSelectedPartBoostAmount(d.selectedPartBoostAmount);
+      }
       if (d.hasOwnProperty("finishList")) {
         setFinishList([...(d.finishList || [])]);
       } else if (d.mode === "edit") {
@@ -139,6 +148,7 @@ export default function App() {
         setSelectedPartType(null);
         setSelectedPartW(null);
         setSelectedPartH(null);
+        setSelectedPartBoostAmount(null);
       }
     };
 
@@ -159,6 +169,12 @@ export default function App() {
       }
 
       const isCtrlOrCmd = event.ctrlKey || event.metaKey;
+
+      if (isCtrlOrCmd && event.code === "KeyL") {
+        event.preventDefault();
+        sendAction("toggle-debug-rendering");
+        return;
+      }
 
       if (isCtrlOrCmd) {
         if (event.code === "KeyZ") {
@@ -709,6 +725,30 @@ export default function App() {
                   <span className="text-[10px] text-yellow-600/80 mt-1 leading-none">Force field deflecting marbles</span>
                 </div>
               </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "boost_gate");
+                  setIsAddMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/10 hover:border-purple-500/30 rounded-lg transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
+                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" />
+                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" />
+                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" />
+                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" />
+                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#e9d5ff" opacity="0.4" />
+                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" />
+                    <path d="M16,16 L20,20 L24,16" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M16,21 L20,25 L24,21" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-semibold text-purple-400 leading-none">Boost Gate</span>
+                  <span className="text-[10px] text-purple-500/80 mt-1 leading-none">Accelerates marbles on pass-through</span>
+                </div>
+              </button>
             </div>
           </motion.div>
         )}
@@ -789,7 +829,7 @@ export default function App() {
                 />
               </div>
 
-              {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "bin" || selectedPartType === "scatter_gate") && selectedPartW !== null && selectedPartH !== null && (
+              {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "bin" || selectedPartType === "scatter_gate" || selectedPartType === "boost_gate") && selectedPartW !== null && selectedPartH !== null && (
                 <div className="border border-white/10 rounded-lg p-3 bg-white/5 flex flex-col gap-3 font-sans">
                   <div className="flex flex-col items-center">
                     <span className="text-[10px] font-bold text-white/40 tracking-wider uppercase">
@@ -819,7 +859,7 @@ export default function App() {
                     />
                   </div>
 
-                  {selectedPartType !== "ramp" && selectedPartType !== "scatter_gate" && (
+                  {selectedPartType !== "ramp" && selectedPartType !== "scatter_gate" && selectedPartType !== "boost_gate" && (
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-center text-xs">
                         <span className="font-medium text-white/80">Height</span>
@@ -841,6 +881,45 @@ export default function App() {
                       />
                     </div>
                   )}
+                </div>
+              )}
+
+              {selectedPartType === "boost_gate" && selectedPartBoostAmount !== null && (
+                <div className="border border-white/10 rounded-lg p-3 bg-white/5 flex flex-col gap-2 font-sans">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-bold text-white/40 tracking-wider uppercase">
+                      Boost Intensity
+                    </span>
+                    <div className="w-full h-px bg-white/10 mt-1" />
+                  </div>
+
+                  <div className="flex flex-col gap-1 mt-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-medium text-white/80">Multiplier</span>
+                      <span className="font-mono text-purple-400 font-bold">{selectedPartBoostAmount.toFixed(1)}x</span>
+                    </div>
+                    
+                    <input
+                      type="range"
+                      min="1.1"
+                      max="3.5"
+                      step="0.1"
+                      value={selectedPartBoostAmount}
+                      onChange={(e) => {
+                        const boostAmount = parseFloat(e.target.value);
+                        setSelectedPartBoostAmount(boostAmount);
+                        sendAction("change-part-property", { boostAmount });
+                      }}
+                      onMouseUp={() => sendAction("save-state")}
+                      onTouchEnd={() => sendAction("save-state")}
+                      className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                    />
+                    
+                    <div className="flex justify-between text-[9px] text-white/40 mt-1">
+                      <span>Light Boost (1.2x)</span>
+                      <span>Hyper (3.0x+)</span>
+                    </div>
+                  </div>
                 </div>
               )}
 

@@ -1,15 +1,16 @@
 import Phaser from "phaser";
 import { Part } from "./types";
 
-export function createScatterGate(
+export function createBoostGate(
   scene: Phaser.Scene,
   x: number,
   y: number,
   w: number,
-  h: number, // Height is fixed at 20px, but parameter is maintained for schema consistency
+  h: number, // Height is fixed at 20px, maintained for schema consistency
   angle: number,
   id: string,
-  color: number = 0xffeb3b
+  color: number = 0xd946ef, // Cool neon magenta/pink as the default boost color
+  boostAmount: number = 1.5 // Default speed multiplier
 ): Part {
   const fixedH = 50;
   const bumperW = 15;
@@ -20,7 +21,7 @@ export function createScatterGate(
     isStatic: true,
     friction: 0,
     restitution: 0.5,
-    label: "scatter_gate_bumper",
+    label: "boost_gate_bumper",
     angle: Math.PI / 2
   });
 
@@ -29,7 +30,7 @@ export function createScatterGate(
     isStatic: true,
     friction: 0,
     restitution: 0.5,
-    label: "scatter_gate_bumper",
+    label: "boost_gate_bumper",
     angle: -Math.PI / 2
   });
 
@@ -37,16 +38,16 @@ export function createScatterGate(
   const mainSensor = scene.matter.add.rectangle(x, y, w - 20, 1, {
     isSensor: true,
     isStatic: true,
-    label: "scatter_gate_sensor"
+    label: "boost_gate_sensor"
   });
 
   // Create compound body
   const body = scene.matter.body.create({
     parts: [mainSensor, leftBumper, rightBumper],
     isStatic: true,
-    label: "scatter_gate"
+    label: "boost_gate"
   });
-  (body as any).label = "scatter_gate";
+  (body as any).label = "boost_gate";
 
   // Remove the temporary individual bodies from the world to avoid duplication / ghost bodies
   scene.matter.world.remove(leftBumper);
@@ -72,7 +73,7 @@ export function createScatterGate(
   const lpInnerTip = -w / 2 + bumperW + 4;
 
   // Left post
-  postsGraphic.fillStyle(0x3c3f58, 1);
+  postsGraphic.fillStyle(0x2a1b3d, 1); // Dark futuristic violet
   postsGraphic.beginPath();
   postsGraphic.moveTo(lpOuterLeft, -fixedH/2);
   postsGraphic.lineTo(lpOuterRight, -fixedH/2);
@@ -83,7 +84,7 @@ export function createScatterGate(
   postsGraphic.closePath();
   postsGraphic.fillPath();
 
-  postsGraphic.lineStyle(1.5, 0x1f2130, 0.95);
+  postsGraphic.lineStyle(1.5, color, 0.95); // Highlight color border
   postsGraphic.beginPath();
   postsGraphic.moveTo(lpOuterLeft, -fixedH/2);
   postsGraphic.lineTo(lpOuterRight, -fixedH/2);
@@ -99,7 +100,7 @@ export function createScatterGate(
   const rpOuterLeft = w / 2 - bumperW;
   const rpInnerTip = w / 2 - bumperW - 4;
 
-  postsGraphic.fillStyle(0x3c3f58, 1);
+  postsGraphic.fillStyle(0x2a1b3d, 1);
   postsGraphic.beginPath();
   postsGraphic.moveTo(rpOuterRight, -fixedH/2);
   postsGraphic.lineTo(rpOuterLeft, -fixedH/2);
@@ -110,7 +111,7 @@ export function createScatterGate(
   postsGraphic.closePath();
   postsGraphic.fillPath();
 
-  postsGraphic.lineStyle(1.5, 0x1f2130, 0.95);
+  postsGraphic.lineStyle(1.5, color, 0.95);
   postsGraphic.beginPath();
   postsGraphic.moveTo(rpOuterRight, -fixedH/2);
   postsGraphic.lineTo(rpOuterLeft, -fixedH/2);
@@ -121,34 +122,26 @@ export function createScatterGate(
   postsGraphic.closePath();
   postsGraphic.strokePath();
 
-  // Draw force field line
-  const forceField = scene.add.rectangle(0, 0, w - 20, 6, color, 0.6);
-  const innerField = scene.add.rectangle(0, 0, w - 20, 2, 0xffffff, 0.95);
+  // Draw force field line with neon boosting textures/shapes (like multi-layered lines)
+  const forceField = scene.add.rectangle(0, 0, w - 20, 8, color, 0.5);
+  const innerField = scene.add.rectangle(0, 0, w - 20, 2, 0xffffff, 0.9);
+
   container.add(forceField);
   container.add(innerField);
   container.add(postsGraphic);
 
-  // Setup glowing & pulsating animations
+  // Setup rich pulsating & streaming effects
   const glowTween = scene.tweens.add({
     targets: forceField,
-    alpha: { from: 0.4, to: 0.95 },
-    scaleY: { from: 0.8, to: 1.4 },
-    duration: 350 + Math.random() * 100,
-    yoyo: true,
-    repeat: -1
-  });
-
-  const innerTween = scene.tweens.add({
-    targets: innerField,
-    alpha: { from: 0.5, to: 1.0 },
-    duration: 180,
+    alpha: { from: 0.35, to: 0.9 },
+    scaleY: { from: 0.7, to: 1.5 },
+    duration: 300,
     yoyo: true,
     repeat: -1
   });
 
   container.on("destroy", () => {
     glowTween.destroy();
-    innerTween.destroy();
   });
 
   // Make container interactive
@@ -167,12 +160,13 @@ export function createScatterGate(
 
   return {
     id,
-    type: "scatter_gate",
+    type: "boost_gate",
     graphic: container,
     body,
     w,
     h: fixedH,
     baseAngle: angle,
-    color
+    color,
+    boostAmount
   };
 }

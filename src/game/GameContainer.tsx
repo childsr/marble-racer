@@ -21,7 +21,7 @@ export const GameContainer: React.FC = () => {
         default: "matter",
         matter: {
           gravity: { x: 0, y: 1 },
-          debug: false, // Set to true to see hitboxes
+          debug: true, // Enabled at boot to register debug graphic hooks
         },
       },
       scene: [MainScene],
