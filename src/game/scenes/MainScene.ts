@@ -3,22 +3,49 @@ import { Part, SerializedPart } from "../parts/types";
 import { createRamp } from "../parts/Ramp";
 import { createPin } from "../parts/Pin";
 import { createSpinner, updateSpinner } from "../parts/Spinner";
-import { createBin } from "../parts/Bin";
 import { createFinishZone } from "../parts/FinishZone";
 import { createMarble } from "../parts/Marble";
 import { createScatterGate } from "../parts/ScatterGate";
 import { createBoostGate } from "../parts/BoostGate";
+import { createCurvedRamp, rebuildCurvedRamp, getBoundingBox } from "../parts/CurvedRamp";
 import { handleEditorAction } from "./handleEditorAction"
 
 const MARBLE_RESTITUTION = 0.7;
 
+function drawDottedLine(
+  graphics: Phaser.GameObjects.Graphics,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  dotRadius = 2.5,
+  spacing = 8,
+  color = 0x00f0ff,
+  alpha = 0.8
+) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const numDots = Math.floor(distance / spacing);
+
+  graphics.fillStyle(color, alpha);
+  for (let i = 0; i <= numDots; i++) {
+    const t = numDots > 0 ? i / numDots : 0;
+    const px = x1 + dx * t;
+    const py = y1 + dy * t;
+    graphics.fillCircle(px, py, dotRadius);
+  }
+}
+
 export class MainScene extends Phaser.Scene {
   mode: "play" | "edit" = "edit";
   actionListener: any;
+  simSpeed: number = 1.0;
 
   parts: Part[] = [];
   selectedParts: Part[] = [];
-  selectionBoxes: Phaser.GameObjects.Shape[] = [];
+  selectionBoxes: Phaser.GameObjects.GameObject[] = [];
+  curvedRampsRedrawMap = new Map<string, () => void>();
 
   clipboard: {
     type: Part["type"];
@@ -30,6 +57,12 @@ export class MainScene extends Phaser.Scene {
     color: number;
     spinnerSpeed?: number;
     boostAmount?: number;
+    x1?: number;
+    y1?: number;
+    x2?: number;
+    y2?: number;
+    cx?: number;
+    cy?: number;
   }[] = [];
   pasteCount = 0;
 
@@ -214,7 +247,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   handleEditorAction(a: { action: string; payload?: any; }) {
-    handleEditorAction(this,a);
+    handleEditorAction(this, a as any);
   }
 
   setMode(mode: "play" | "edit") {
@@ -251,8 +284,18 @@ export class MainScene extends Phaser.Scene {
       // Switch to play mode
       this.finishList = [];
       this.spawnMarbles();
+      if (this.matter && this.matter.world) {
+        this.matter.world.engine.timing.timeScale = this.simSpeed;
+      }
     }
     this.notifyState();
+  }
+
+  setSimSpeed(speed: number) {
+    this.simSpeed = speed;
+    if (this.matter && this.matter.world) {
+      this.matter.world.engine.timing.timeScale = speed;
+    }
   }
 
   notifyState() {
@@ -282,6 +325,7 @@ export class MainScene extends Phaser.Scene {
           selectedPartColor: sp?.color,
           selectedPartSpinnerSpeed: sp?.spinnerSpeed,
           selectedPartBoostAmount: sp?.boostAmount,
+          selectedPartSegments: sp?.segments,
           hasSpinnerSelected,
           selectedPartX: cx,
           selectedPartY: cy,
@@ -292,6 +336,7 @@ export class MainScene extends Phaser.Scene {
           selectedPartW: sp?.w,
           selectedPartH: sp?.h,
           finishList: [...this.finishList],
+          showDebugBodies: this.showDebugBodies,
         },
       }),
     );
@@ -383,6 +428,14 @@ export class MainScene extends Phaser.Scene {
   }
 
   setupInput() {
+    this.input.addPointer(2);
+
+    let startPinchDistance = 0;
+    let isPinching = false;
+    let pinchCenter = { x: 0, y: 0 };
+    let startPinchAngle = 0;
+    let lastPinchAngle = 0;
+
     let dragStartMap = new Map<Part, { x: number; y: number }>();
     let isDraggingSelection = false;
     let hasDraggedSelection = false;
@@ -428,12 +481,24 @@ export class MainScene extends Phaser.Scene {
           this.selectedParts.forEach((p) => {
             const pOrig = dragStartMap.get(p);
             if (pOrig) {
+              const oldX = p.graphic.x;
+              const oldY = p.graphic.y;
               p.graphic.x = pOrig.x + dx;
               p.graphic.y = pOrig.y + dy;
-              this.matter.body.setPosition(p.body, {
-                x: p.graphic.x,
-                y: p.graphic.y,
-              });
+
+              if (p.type === "curved_ramp") {
+                const deltaX = p.graphic.x - oldX;
+                const deltaY = p.graphic.y - oldY;
+                this.matter.body.setPosition(p.body, {
+                  x: p.body.position.x + deltaX,
+                  y: p.body.position.y + deltaY,
+                });
+              } else {
+                this.matter.body.setPosition(p.body, {
+                  x: p.graphic.x,
+                  y: p.graphic.y,
+                });
+              }
             }
           });
           this.updateSelectionBox();
@@ -446,6 +511,11 @@ export class MainScene extends Phaser.Scene {
         isDraggingSelection = false;
         dragStartMap.clear();
         if (hasDraggedSelection) {
+          this.selectedParts.forEach((p) => {
+            if (p.type === "curved_ramp") {
+              rebuildCurvedRamp(this, p);
+            }
+          });
           this.saveState();
         }
         hasDraggedSelection = false;
@@ -458,6 +528,24 @@ export class MainScene extends Phaser.Scene {
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
+
+        const p1 = this.input.pointer1;
+        const p2 = this.input.pointer2;
+        if (p1.active && p2.active && p1.isDown && p2.isDown) {
+          isPinching = true;
+          startPinchDistance = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+          pinchCenter = {
+            x: (p1.x + p2.x) / 2,
+            y: (p1.y + p2.y) / 2,
+          };
+          this.isBoxSelecting = false;
+          this.boxSelectionVisual.setVisible(false);
+          startPinchAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+          lastPinchAngle = startPinchAngle;
+          return;
+        }
+
+        if (isPinching) return;
 
         if (this.mode === "edit") {
           if (currentlyOver.length === 0 || currentlyOver[0] === undefined) {
@@ -480,6 +568,79 @@ export class MainScene extends Phaser.Scene {
     );
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      const p1 = this.input.pointer1;
+      const p2 = this.input.pointer2;
+      if (this.mode === "edit" && p1.active && p2.active && p1.isDown && p2.isDown) {
+        if (!isPinching) {
+          isPinching = true;
+          startPinchDistance = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+          pinchCenter = {
+            x: (p1.x + p2.x) / 2,
+            y: (p1.y + p2.y) / 2,
+          };
+          this.isBoxSelecting = false;
+          this.boxSelectionVisual.setVisible(false);
+          startPinchAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+          lastPinchAngle = startPinchAngle;
+        }
+
+        // Apply two-finger rotation to selected parts
+        if (this.selectedParts.length > 0) {
+          const currentAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+          let angleDiff = currentAngle - lastPinchAngle;
+          // Normalize to [-PI, PI] to avoid jumps around the wrap-around point
+          angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+
+          if (Math.abs(angleDiff) > 0.001) {
+            let cx = 0,
+              cy = 0;
+            this.selectedParts.forEach((p) => {
+              cx += p.graphic.x;
+              cy += p.graphic.y;
+            });
+            cx /= this.selectedParts.length;
+            cy /= this.selectedParts.length;
+
+            this.selectedParts.forEach((p) => {
+              const Point = Phaser.Math.RotateAround(
+                { x: p.graphic.x, y: p.graphic.y },
+                cx,
+                cy,
+                angleDiff,
+              );
+              p.graphic.setPosition(Point.x, Point.y);
+
+              if (p.type === "curved_ramp") {
+                p.graphic.setRotation(p.graphic.rotation + angleDiff);
+                p.baseAngle = p.graphic.rotation;
+                rebuildCurvedRamp(this, p);
+              } else {
+                this.matter.body.setPosition(p.body, Point);
+
+                if (p.type !== "pin" && p.type !== "marble") {
+                  p.baseAngle += angleDiff;
+                  this.matter.body.setAngle(p.body, p.baseAngle);
+                  p.graphic.setRotation(p.baseAngle);
+                } else {
+                  p.baseAngle = 0;
+                  this.matter.body.setAngle(p.body, 0);
+                  p.graphic.setRotation(0);
+                }
+              }
+            });
+
+            this.updateSelectionBox();
+            this.saveState();
+            this.notifyState();
+          }
+          lastPinchAngle = currentAngle;
+        }
+
+        return;
+      }
+
+      if (isPinching) return;
+
       if (this.mode === "edit" && this.isBoxSelecting) {
         const w = pointer.worldX - this.boxSelectStart.x;
         const h = pointer.worldY - this.boxSelectStart.y;
@@ -492,6 +653,13 @@ export class MainScene extends Phaser.Scene {
     });
 
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      const p1 = this.input.pointer1;
+      const p2 = this.input.pointer2;
+      if (!p1.isDown || !p2.isDown) {
+        isPinching = false;
+      }
+      if (isPinching) return;
+
       if (this.mode === "edit" && this.isBoxSelecting) {
         this.isBoxSelecting = false;
         this.boxSelectionVisual.setVisible(false);
@@ -552,16 +720,23 @@ export class MainScene extends Phaser.Scene {
             angleInc,
           );
           p.graphic.setPosition(Point.x, Point.y);
-          this.matter.body.setPosition(p.body, Point);
 
-          if (p.type !== "pin" && p.type !== "marble") {
-            p.baseAngle += angleInc;
-            this.matter.body.setAngle(p.body, p.baseAngle);
-            p.graphic.setRotation(p.baseAngle);
+          if (p.type === "curved_ramp") {
+            p.graphic.setRotation(p.graphic.rotation + angleInc);
+            p.baseAngle = p.graphic.rotation;
+            rebuildCurvedRamp(this, p);
           } else {
-            p.baseAngle = 0;
-            this.matter.body.setAngle(p.body, 0);
-            p.graphic.setRotation(0);
+            this.matter.body.setPosition(p.body, Point);
+
+            if (p.type !== "pin" && p.type !== "marble") {
+              p.baseAngle += angleInc;
+              this.matter.body.setAngle(p.body, p.baseAngle);
+              p.graphic.setRotation(p.baseAngle);
+            } else {
+              p.baseAngle = 0;
+              this.matter.body.setAngle(p.body, 0);
+              p.graphic.setRotation(0);
+            }
           }
         });
 
@@ -579,6 +754,8 @@ export class MainScene extends Phaser.Scene {
     let part;
     if (type === "ramp") {
       part = this.createPart("ramp", centerX, centerY, 300, 20, 0);
+    } else if (type === "curved_ramp") {
+      part = this.createPart("curved_ramp", centerX, centerY, 300, 20, 0);
     } else if (type === "pin") {
       part = this.createPart("pin", centerX, centerY, 14, 14, 0);
     } else if (type === "spinner") {
@@ -667,18 +844,25 @@ export class MainScene extends Phaser.Scene {
     color?: number,
     spinnerSpeed?: number,
     boostAmount?: number,
+    x1?: number,
+    y1?: number,
+    x2?: number,
+    y2?: number,
+    cx?: number,
+    cy?: number,
+    segments?: number,
   ) {
     const partId = id || Math.random().toString();
     let part: Part;
 
     if (type === "ramp") {
       part = createRamp(this, x, y, w, h, angle, partId, color);
+    } else if (type === "curved_ramp") {
+      part = createCurvedRamp(this, x, y, w, h, angle, partId, color, x1, y1, x2, y2, cx, cy, segments);
     } else if (type === "pin") {
       part = createPin(this, x, y, w, h, angle, partId, color);
     } else if (type === "spinner") {
       part = createSpinner(this, x, y, w, h, angle, partId, color, spinnerSpeed);
-    } else if (type === "bin") {
-      part = createBin(this, x, y, w, h, angle, partId, color);
     } else if (type === "finish_zone") {
       part = createFinishZone(this, x, y, w, h, angle, partId, color);
     } else if (type === "marble") {
@@ -716,13 +900,283 @@ export class MainScene extends Phaser.Scene {
   updateSelectionBox() {
     this.selectionBoxes.forEach((box) => box.destroy());
     this.selectionBoxes = [];
+    this.curvedRampsRedrawMap.clear();
 
     this.selectedParts.forEach((part) => {
-      let shape: Phaser.GameObjects.Shape;
+      let shape: any;
       const x = part.graphic.x;
       const y = part.graphic.y;
 
-      if (part.type === "pin" || part.type === "marble") {
+      if (part.type === "curved_ramp") {
+        // Draw elegant bounding box
+        const bounds = getBoundingBox([
+          { x: part.x1!, y: part.y1! },
+          { x: part.x2!, y: part.y2! },
+          { x: part.cx!, y: part.cy! },
+        ]);
+
+        const containerAngle = part.graphic.rotation;
+        const cosVal = Math.cos(containerAngle);
+        const sinVal = Math.sin(containerAngle);
+
+        const localCenterX = bounds.x + bounds.w / 2;
+        const localCenterY = bounds.y + bounds.h / 2;
+        const shapeAbsX = x + (localCenterX * cosVal - localCenterY * sinVal);
+        const shapeAbsY = y + (localCenterX * sinVal + localCenterY * cosVal);
+
+        shape = this.add.rectangle(
+          shapeAbsX,
+          shapeAbsY,
+          bounds.w,
+          bounds.h,
+          0x00ff00,
+          0
+        );
+        shape.setStrokeStyle(1.5, 0x00ff00, 0.4);
+        shape.setRotation(containerAngle);
+        shape.setDepth(100);
+        this.selectionBoxes.push(shape);
+
+        const dottedGraphics = this.add.graphics();
+        dottedGraphics.setDepth(110);
+        this.selectionBoxes.push(dottedGraphics);
+
+        const handlesList: { [name: string]: Phaser.GameObjects.Arc } = {};
+
+        const drawSegmentDottedLines = () => {
+          dottedGraphics.clear();
+          const pAngle = part.graphic.rotation;
+          const cosV = Math.cos(pAngle);
+          const sinV = Math.sin(pAngle);
+
+          const startX = part.graphic.x + (part.x1! * cosV - part.y1! * sinV);
+          const startY = part.graphic.y + (part.x1! * sinV + part.y1! * cosV);
+
+          const ctrlX = part.graphic.x + (part.cx! * cosV - part.cy! * sinV);
+          const ctrlY = part.graphic.y + (part.cx! * sinV + part.cy! * cosV);
+
+          const endX = part.graphic.x + (part.x2! * cosV - part.y2! * sinV);
+          const endY = part.graphic.y + (part.x2! * sinV + part.y2! * cosV);
+
+          drawDottedLine(dottedGraphics, startX, startY, ctrlX, ctrlY, 2.5, 8, 0x00f0ff, 0.5);
+          drawDottedLine(dottedGraphics, ctrlX, ctrlY, endX, endY, 2.5, 8, 0x00f0ff, 0.5);
+
+          if (handlesList["start"]) handlesList["start"].setPosition(startX, startY);
+          if (handlesList["control"]) handlesList["control"].setPosition(ctrlX, ctrlY);
+          if (handlesList["end"]) handlesList["end"].setPosition(endX, endY);
+        };
+
+        drawSegmentDottedLines();
+        this.curvedRampsRedrawMap.set(part.id, drawSegmentDottedLines);
+
+        // Spawn 3 control handles for the Bezier points
+        const points = [
+          {
+            name: "start",
+            x: part.x1!,
+            y: part.y1!,
+            setCur: (lx: number, ly: number) => {
+              part.x1 = lx;
+              part.y1 = ly;
+            },
+          },
+          {
+            name: "control",
+            x: part.cx!,
+            y: part.cy!,
+            setCur: (lx: number, ly: number) => {
+              part.cx = lx;
+              part.cy = ly;
+            },
+          },
+          {
+            name: "end",
+            x: part.x2!,
+            y: part.y2!,
+            setCur: (lx: number, ly: number) => {
+              part.x2 = lx;
+              part.y2 = ly;
+            },
+          },
+        ];
+
+        points.forEach((pt) => {
+          const absX = x + (pt.x * cosVal - pt.y * sinVal);
+          const absY = y + (pt.x * sinVal + pt.y * cosVal);
+          const color = pt.name === "control" ? 0x00f0ff : 0x00ff00;
+          const handle = this.add.circle(absX, absY, 10, color, 0.6);
+          handle.setStrokeStyle(2, 0xffffff, 0.8);
+          handle.setDepth(120);
+          handle.setInteractive({ useHandCursor: true });
+          this.input.setDraggable(handle);
+          handlesList[pt.name] = handle;
+
+          if (pt.name === "control") {
+            this.tweens.add({
+              targets: handle,
+              scale: 1.4,
+              duration: 800,
+              yoyo: true,
+              repeat: -1,
+              ease: "Sine.easeInOut"
+            });
+          }
+
+          let connectedEnds: { part: Part; endpointName: "start" | "end" }[] = [];
+
+          handle.on("dragstart", () => {
+            connectedEnds = [];
+            if (pt.name === "control") return;
+
+            // Get absolute position of this handle before the drag starts
+            const currentCos = Math.cos(part.graphic.rotation);
+            const currentSin = Math.sin(part.graphic.rotation);
+            const myAbsX = part.graphic.x + (pt.x * currentCos - pt.y * currentSin);
+            const myAbsY = part.graphic.y + (pt.x * currentSin + pt.y * currentCos);
+
+            // Find all other curved ramp start/end endpoints within a 10-pixel radius (already snapped)
+            this.parts.forEach((otherPart) => {
+              if (otherPart === part || otherPart.type !== "curved_ramp") return;
+
+              const otherCos = Math.cos(otherPart.graphic.rotation);
+              const otherSin = Math.sin(otherPart.graphic.rotation);
+
+              // check otherPart's start endpoint
+              const oStartX = otherPart.graphic.x + (otherPart.x1! * otherCos - otherPart.y1! * otherSin);
+              const oStartY = otherPart.graphic.y + (otherPart.x1! * otherSin + otherPart.y1! * otherCos);
+              const distStart = Phaser.Math.Distance.Between(myAbsX, myAbsY, oStartX, oStartY);
+              if (distStart < 10) {
+                connectedEnds.push({ part: otherPart, endpointName: "start" });
+              }
+
+              // check otherPart's end endpoint
+              const oEndX = otherPart.graphic.x + (otherPart.x2! * otherCos - otherPart.y2! * otherSin);
+              const oEndY = otherPart.graphic.y + (otherPart.x2! * otherSin + otherPart.y2! * otherCos);
+              const distEnd = Phaser.Math.Distance.Between(myAbsX, myAbsY, oEndX, oEndY);
+              if (distEnd < 10) {
+                connectedEnds.push({ part: otherPart, endpointName: "end" });
+              }
+            });
+          });
+
+          handle.on("drag", (pointer: any, dragX: number, dragY: number) => {
+            let targetWorldX = dragX;
+            let targetWorldY = dragY;
+
+            // Magnetic snap to another nearby endpoint if current point is interactive start/end
+            if (pt.name !== "control") {
+              const SNAP_DISTANCE = 20;
+              let closestSnapPart: Part | null = null;
+              let closestSnapName: "start" | "end" | null = null;
+              let minSnapDist = SNAP_DISTANCE;
+              let snapWorldX = 0;
+              let snapWorldY = 0;
+
+              this.parts.forEach((otherPart) => {
+                if (otherPart === part || otherPart.type !== "curved_ramp") return;
+                // Don't snap to something we are already connected and moving with
+                if (connectedEnds.some(conn => conn.part === otherPart)) return;
+
+                const otherCos = Math.cos(otherPart.graphic.rotation);
+                const otherSin = Math.sin(otherPart.graphic.rotation);
+
+                // Start endpoint
+                const oStartX = otherPart.graphic.x + (otherPart.x1! * otherCos - otherPart.y1! * otherSin);
+                const oStartY = otherPart.graphic.y + (otherPart.x1! * otherSin + otherPart.y1! * otherCos);
+                const dStart = Phaser.Math.Distance.Between(dragX, dragY, oStartX, oStartY);
+                if (dStart < minSnapDist) {
+                  minSnapDist = dStart;
+                  closestSnapPart = otherPart;
+                  closestSnapName = "start";
+                  snapWorldX = oStartX;
+                  snapWorldY = oStartY;
+                }
+
+                // End endpoint
+                const oEndX = otherPart.graphic.x + (otherPart.x2! * otherCos - otherPart.y2! * otherSin);
+                const oEndY = otherPart.graphic.y + (otherPart.x2! * otherSin + otherPart.y2! * otherCos);
+                const dEnd = Phaser.Math.Distance.Between(dragX, dragY, oEndX, oEndY);
+                if (dEnd < minSnapDist) {
+                  minSnapDist = dEnd;
+                  closestSnapPart = otherPart;
+                  closestSnapName = "end";
+                  snapWorldX = oEndX;
+                  snapWorldY = oEndY;
+                }
+              });
+
+              if (closestSnapPart !== null) {
+                targetWorldX = snapWorldX;
+                targetWorldY = snapWorldY;
+                handle.setFillStyle(0x39ff14, 1.0); // Very bright lime green
+                handle.setScale(1.4);
+              } else if (connectedEnds.length > 0) {
+                handle.setFillStyle(0x39ff14, 1.0); // Keep highlighted bright lime green if moving pre-snapped points
+                handle.setScale(1.2);
+              } else {
+                handle.setFillStyle(0x00ff00, 0.6); // Default green
+                handle.setScale(1.0);
+              }
+            }
+
+            const tempPoint = new Phaser.Math.Vector2();
+            part.graphic.getLocalPoint(targetWorldX, targetWorldY, tempPoint);
+            const localX = tempPoint.x;
+            const localY = tempPoint.y;
+            pt.setCur(localX, localY);
+            handle.setPosition(targetWorldX, targetWorldY);
+            rebuildCurvedRamp(this, part);
+
+            // Also drag connected endpoints along simultaneously!
+            connectedEnds.forEach((conn) => {
+              const otherTemp = new Phaser.Math.Vector2();
+              conn.part.graphic.getLocalPoint(targetWorldX, targetWorldY, otherTemp);
+              if (conn.endpointName === "start") {
+                conn.part.x1 = otherTemp.x;
+                conn.part.y1 = otherTemp.y;
+              } else {
+                conn.part.x2 = otherTemp.x;
+                conn.part.y2 = otherTemp.y;
+              }
+              rebuildCurvedRamp(this, conn.part);
+            });
+
+            // Rescale bounding box outline
+            const newBounds = getBoundingBox([
+              { x: part.x1!, y: part.y1! },
+              { x: part.x2!, y: part.y2! },
+              { x: part.cx!, y: part.cy! },
+            ]);
+
+            const newContainerAngle = part.graphic.rotation;
+            const newCos = Math.cos(newContainerAngle);
+            const newSin = Math.sin(newContainerAngle);
+            const newLocalCenterX = newBounds.x + newBounds.w / 2;
+            const newLocalCenterY = newBounds.y + newBounds.h / 2;
+            const newShapeAbsX = part.graphic.x + (newLocalCenterX * newCos - newLocalCenterY * newSin);
+            const newShapeAbsY = part.graphic.y + (newLocalCenterX * newSin + newLocalCenterY * newCos);
+
+            shape.setPosition(newShapeAbsX, newShapeAbsY);
+            shape.setSize(newBounds.w, newBounds.h);
+            shape.setRotation(newContainerAngle);
+
+            const pRedraw = this.curvedRampsRedrawMap.get(part.id);
+            if (pRedraw) pRedraw();
+
+            connectedEnds.forEach((conn) => {
+              const connRedraw = this.curvedRampsRedrawMap.get(conn.part.id);
+              if (connRedraw) connRedraw();
+            });
+          });
+
+          handle.on("dragend", () => {
+            this.saveState();
+            this.updateSelectionBox();
+          });
+
+          this.selectionBoxes.push(handle);
+        });
+      } else if (part.type === "pin" || part.type === "marble") {
         const radius = part.w + 5;
         shape = this.add.circle(x, y, radius, 0x00ff00, 0);
         shape.setStrokeStyle(2, 0x00ff00, 0.5);
@@ -736,6 +1190,72 @@ export class MainScene extends Phaser.Scene {
 
       this.selectionBoxes.push(shape);
     });
+
+    if (this.mode === "edit") {
+      this.parts.forEach((part) => {
+        if (part.type === "curved_ramp" && !this.selectedParts.includes(part)) {
+          // Draw dotted lines at reduced overall opacity (0.2)
+          const dottedGraphics = this.add.graphics();
+          dottedGraphics.setDepth(90);
+          this.selectionBoxes.push(dottedGraphics);
+
+          const circles: Phaser.GameObjects.Arc[] = [];
+
+          const redrawNonSelected = () => {
+            dottedGraphics.clear();
+            const pAngle = part.graphic.rotation;
+            const cosV = Math.cos(pAngle);
+            const sinV = Math.sin(pAngle);
+
+            const startX = part.graphic.x + (part.x1! * cosV - part.y1! * sinV);
+            const startY = part.graphic.y + (part.x1! * sinV + part.y1! * cosV);
+
+            const ctrlX = part.graphic.x + (part.cx! * cosV - part.cy! * sinV);
+            const ctrlY = part.graphic.y + (part.cx! * sinV + part.cy! * cosV);
+
+            const endX = part.graphic.x + (part.x2! * cosV - part.y2! * sinV);
+            const endY = part.graphic.y + (part.x2! * sinV + part.y2! * cosV);
+
+            drawDottedLine(dottedGraphics, startX, startY, ctrlX, ctrlY, 2, 8, 0x00f0ff, 0.2);
+            drawDottedLine(dottedGraphics, ctrlX, ctrlY, endX, endY, 2, 8, 0x00f0ff, 0.2);
+
+            const ptCoords = [
+              { x: part.x1!, y: part.y1! },
+              { x: part.cx!, y: part.cy! },
+              { x: part.x2!, y: part.y2! }
+            ];
+            ptCoords.forEach((coord, i) => {
+              const absX = part.graphic.x + (coord.x * cosV - coord.y * sinV);
+              const absY = part.graphic.y + (coord.x * sinV + coord.y * cosV);
+              if (circles[i]) {
+                circles[i].setPosition(absX, absY);
+              }
+            });
+          };
+
+          const points = [
+            { x: part.x1!, y: part.y1!, color: 0x00ff00 },
+            { x: part.cx!, y: part.cy!, color: 0x00f0ff },
+            { x: part.x2!, y: part.y2!, color: 0x00ff00 },
+          ];
+
+          points.forEach((pt) => {
+            const pAngle = part.graphic.rotation;
+            const cosV = Math.cos(pAngle);
+            const sinV = Math.sin(pAngle);
+            const absX = part.graphic.x + (pt.x * cosV - pt.y * sinV);
+            const absY = part.graphic.y + (pt.x * sinV + pt.y * cosV);
+            const ptCircle = this.add.circle(absX, absY, 7, pt.color, 0.2);
+            ptCircle.setDepth(95);
+            this.selectionBoxes.push(ptCircle);
+            circles.push(ptCircle);
+          });
+
+          redrawNonSelected();
+          this.curvedRampsRedrawMap.set(part.id, redrawNonSelected);
+        }
+      });
+    }
   }
 
   selectParts(parts: Part[]) {
@@ -776,7 +1296,7 @@ export class MainScene extends Phaser.Scene {
     );
     this.wallGraphics = [wall1, wall2, wall3, wall4];
     this.wallGraphics.forEach(wall => {
-      wall.setVisible(!this.showDebugBodies);
+      wall.setVisible(true);
     });
   }
 
@@ -814,8 +1334,16 @@ export class MainScene extends Phaser.Scene {
         s.color,
         s.spinnerSpeed,
         s.boostAmount,
+        s.x1,
+        s.y1,
+        s.x2,
+        s.y2,
+        s.cx,
+        s.cy,
+        s.segments,
       );
     });
+    this.updateSelectionBox();
   }
 
   saveState() {
@@ -830,6 +1358,13 @@ export class MainScene extends Phaser.Scene {
       color: p.color,
       spinnerSpeed: p.spinnerSpeed,
       boostAmount: p.boostAmount,
+      x1: p.x1,
+      y1: p.y1,
+      x2: p.x2,
+      y2: p.y2,
+      cx: p.cx,
+      cy: p.cy,
+      segments: p.segments,
     }));
     this.history = this.history.slice(0, this.historyIndex + 1);
     this.history.push(state);
@@ -895,18 +1430,8 @@ export class MainScene extends Phaser.Scene {
     this.createRampBetween(1600, 950, 700, 980, 15);
     this.createPart("spinner", 850, 820, 350, 25, 0);
 
-    const binCount = 5;
-    const binWidth = 120;
-    const binStartX = 150;
-    const binY = 1080 - 80;
-
-    for (let i = 0; i <= binCount; i++) {
-      const x = binStartX + i * binWidth;
-      this.createPart("bin", x, binY + 40, 15, 80, 0);
-    }
-
-    // Add default Finish Zone spanning the bins at the bottom
-    this.createPart("finish_zone", 450, binY + 40, 600, 60, 0);
+    // Add default Finish Zone at the bottom
+    this.createPart("finish_zone", 450, 1040, 600, 60, 0);
 
     // Add default starting marbles at the top left of the course
     for (let i = 0; i < 8; i++) {
@@ -917,6 +1442,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.saveState();
+    this.updateSelectionBox();
   }
 
   spawnMarbles() {
@@ -936,7 +1462,7 @@ export class MainScene extends Phaser.Scene {
 
       const graphic = this.add.circle(x, y, 14, color);
       graphic.setDepth(50);
-      graphic.setVisible(!this.showDebugBodies);
+      graphic.setVisible(true);
 
       this.marbles.push(marble);
       this.marbleGraphics.push(graphic);
@@ -966,9 +1492,10 @@ export class MainScene extends Phaser.Scene {
 
   shakeMarbles() {
     if (this.mode !== "play") return;
+    const SHAKE_STRENGTH = 4;
     this.marbles.forEach((marble) => {
-      const forceX = (Math.random() - 0.5) * 0.05;
-      const forceY = (Math.random() - 0.5) * 0.05;
+      const forceX = (Math.random() - 0.5) * 0.05 * SHAKE_STRENGTH;
+      const forceY = (Math.random() - 0.5) * 0.05 * SHAKE_STRENGTH;
       this.matter.body.applyForce(marble, marble.position, {
         x: forceX,
         y: forceY,
@@ -982,14 +1509,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   applyPartRenderingMode(part: Part) {
-    if (this.showDebugBodies) {
+    if (part.type === "marble" && this.mode === "play") {
       part.graphic.setVisible(false);
     } else {
-      if (part.type === "marble" && this.mode === "play") {
-        part.graphic.setVisible(false);
-      } else {
-        part.graphic.setVisible(true);
-      }
+      part.graphic.setVisible(true);
     }
   }
 
@@ -1001,6 +1524,7 @@ export class MainScene extends Phaser.Scene {
         this.matter.world.createDebugGraphic();
       }
       this.matter.world.debugGraphic.setVisible(true);
+      this.matter.world.debugGraphic.setDepth(999999);
     } else {
       this.matter.world.drawDebug = false;
       if (this.matter.world.debugGraphic) {
@@ -1016,23 +1540,23 @@ export class MainScene extends Phaser.Scene {
 
     // 3. Wall graphics visibility
     this.wallGraphics.forEach((wall) => {
-      wall.setVisible(!this.showDebugBodies);
+      wall.setVisible(true);
     });
 
     // 4. Active dynamic marbles visibility
     this.marbleGraphics.forEach((g) => {
-      g.setVisible(!this.showDebugBodies);
+      g.setVisible(true);
     });
 
     // 5. Active glows and particles visibility
     this.activeGlows.forEach((g) => {
       if (g && g.active) {
-        g.setVisible(!this.showDebugBodies);
+        g.setVisible(true);
       }
     });
 
     if (this.particles) {
-      this.particles.setVisible(!this.showDebugBodies);
+      this.particles.setVisible(true);
     }
   }
 }

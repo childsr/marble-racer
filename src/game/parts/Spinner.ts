@@ -52,7 +52,8 @@ export function createSpinner(
 
 export function updateSpinner(scene: Phaser.Scene, part: Part) {
   const speed = part.spinnerSpeed !== undefined ? part.spinnerSpeed : 0.25;
-  const rotPerFrame = (speed * Math.PI * 2) / 60;
+  const simSpeed = (scene as any).simSpeed !== undefined ? (scene as any).simSpeed : 1.0;
+  const rotPerFrame = (speed * Math.PI * 2 * simSpeed) / 60;
   scene.matter.body.setAngle(part.body, part.body.angle + rotPerFrame);
   part.graphic.setRotation(part.body.angle);
 }

@@ -6,7 +6,7 @@ export function createBoostGate(
   x: number,
   y: number,
   w: number,
-  h: number, // Height is fixed at 20px, maintained for schema consistency
+  h: number, // Height is fixed, maintained for schema consistency
   angle: number,
   id: string,
   color: number = 0xd946ef, // Cool neon magenta/pink as the default boost color

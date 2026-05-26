@@ -21,6 +21,7 @@ import {
   GripHorizontal,
   Plus,
   ChevronDown,
+  ChevronLeft,
   X,
   TrendingDown,
   Pin,
@@ -29,6 +30,7 @@ import {
   Copy,
   Clipboard,
   Layers,
+  Eye,
 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -41,8 +43,6 @@ const getPartTypeName = (type: string | null): string => {
       return "Pin";
     case "spinner":
       return "Spinner";
-    case "bin":
-      return "Bin";
     case "finish_zone":
       return "Finish Zone";
     case "marble":
@@ -77,24 +77,43 @@ export default function App() {
   const [selectedPartBoostAmount, setSelectedPartBoostAmount] = useState<
     number | null
   >(null);
+  const [selectedPartSegments, setSelectedPartSegments] = useState<
+    number | null
+  >(null);
 
   const [selectedPartType, setSelectedPartType] = useState<string | null>(null);
   const [selectedPartW, setSelectedPartW] = useState<number | null>(null);
   const [selectedPartH, setSelectedPartH] = useState<number | null>(null);
   const [finishList, setFinishList] = useState<{ color: number; place: number }[]>([]);
+  const [showDebugBodies, setShowDebugBodies] = useState(false);
 
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const speedMenuRef = useRef<HTMLDivElement>(null);
+  const speedButtonRef = useRef<HTMLButtonElement>(null);
+  const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
+  const [simSpeed, setSimSpeed] = useState<number>(1.0);
 
   useEffect(() => {
     const handleOutsideClick = (e: PointerEvent) => {
-      if (!isAddMenuOpen) return;
-      if (
-        addMenuRef.current &&
-        !addMenuRef.current.contains(e.target as Node) &&
-        addButtonRef.current &&
-        !addButtonRef.current.contains(e.target as Node)
-      ) {
-        setIsAddMenuOpen(false);
+      if (isAddMenuOpen) {
+        if (
+          addMenuRef.current &&
+          !addMenuRef.current.contains(e.target as Node) &&
+          addButtonRef.current &&
+          !addButtonRef.current.contains(e.target as Node)
+        ) {
+          setIsAddMenuOpen(false);
+        }
+      }
+      if (isSpeedMenuOpen) {
+        if (
+          speedMenuRef.current &&
+          !speedMenuRef.current.contains(e.target as Node) &&
+          speedButtonRef.current &&
+          !speedButtonRef.current.contains(e.target as Node)
+        ) {
+          setIsSpeedMenuOpen(false);
+        }
       }
     };
 
@@ -102,7 +121,7 @@ export default function App() {
     return () => {
       document.removeEventListener("pointerdown", handleOutsideClick);
     };
-  }, [isAddMenuOpen]);
+  }, [isAddMenuOpen, isSpeedMenuOpen]);
 
   useEffect(() => {
     const handleStateChange = (e: any) => {
@@ -129,10 +148,16 @@ export default function App() {
       if (d.hasOwnProperty("selectedPartBoostAmount")) {
         setSelectedPartBoostAmount(d.selectedPartBoostAmount);
       }
+      if (d.hasOwnProperty("selectedPartSegments")) {
+        setSelectedPartSegments(d.selectedPartSegments);
+      }
       if (d.hasOwnProperty("finishList")) {
         setFinishList([...(d.finishList || [])]);
       } else if (d.mode === "edit") {
         setFinishList([]);
+      }
+      if (d.hasOwnProperty("showDebugBodies")) {
+        setShowDebugBodies(d.showDebugBodies);
       }
 
       if (d.selectedPartId && d.selectedPartId !== selectedPartId) {
@@ -149,6 +174,7 @@ export default function App() {
         setSelectedPartW(null);
         setSelectedPartH(null);
         setSelectedPartBoostAmount(null);
+        setSelectedPartSegments(null);
       }
     };
 
@@ -400,25 +426,91 @@ export default function App() {
   return (
     <div className="w-full h-screen bg-[#0a0a0a] text-white flex flex-col">
       <header className="w-full flex items-center justify-between px-4 py-3 shrink-0 z-10 transition-all relative bg-[#151619] border-b border-white/10">
-        <div className="flex gap-2">
-          <button
-            onClick={() => sendAction("toggle-mode")}
-            className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all shadow-lg text-white cursor-pointer ${
-              mode === "edit"
-                ? "bg-emerald-600 hover:bg-emerald-500"
-                : "bg-blue-600 hover:bg-blue-500"
-            }`}
-          >
-            {mode === "edit" ? (
-              <>
-                <Play size={20} /> Play
-              </>
-            ) : (
-              <>
-                <Edit size={20} /> Edit
-              </>
-            )}
-          </button>
+        <div className="flex gap-2 items-center relative">
+          {mode === "edit" ? (
+            <>
+              <div className="flex items-stretch rounded-full overflow-hidden shadow-lg border border-white/10 shrink-0 select-none h-[40px]">
+                <button
+                  onClick={() => {
+                    sendAction("set-sim-speed", simSpeed);
+                    sendAction("toggle-mode");
+                  }}
+                  className="flex items-center gap-2 pl-6 pr-4 py-2 font-semibold transition-all text-white cursor-pointer bg-emerald-600 hover:bg-emerald-500"
+                >
+                  <Play size={18} className="fill-white" /> Play {simSpeed !== 1 ? `(${simSpeed}x)` : ""}
+                </button>
+
+                <button
+                  ref={speedButtonRef}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSpeedMenuOpen(!isSpeedMenuOpen);
+                  }}
+                  className="flex items-center justify-center px-3 border-l border-white/10 transition-all text-white cursor-pointer bg-emerald-600 hover:bg-emerald-500"
+                  title="Simulation speed options"
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+
+              {isSpeedMenuOpen && (
+                <div
+                  ref={speedMenuRef}
+                  className="absolute top-full left-0 mt-2 bg-[#1c1d22] border border-white/10 rounded-xl shadow-2xl py-1.5 min-w-[130px] z-[110] flex flex-col"
+                >
+                  <div className="px-3 py-1 text-[9px] font-bold text-white/40 uppercase tracking-wider mb-1">
+                    Sim Speed
+                  </div>
+                  {[0.25, 0.5, 1.0].map((speed) => (
+                    <button
+                      key={speed}
+                      onClick={() => {
+                        setSimSpeed(speed);
+                        sendAction("set-sim-speed", speed);
+                        setIsSpeedMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs font-semibold font-mono transition-colors hover:bg-white/10 flex items-center justify-between ${
+                        simSpeed === speed ? "text-emerald-400 bg-emerald-500/10" : "text-white/80"
+                      }`}
+                    >
+                      <span>{speed}x</span>
+                      {simSpeed === speed && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  sendAction("toggle-mode");
+                }}
+                className="flex items-center gap-2 px-6 rounded-full font-semibold transition-all text-white cursor-pointer bg-[#0ea5e9] hover:bg-sky-400 border border-sky-400/20 shadow-md h-[40px]"
+              >
+                <ChevronLeft size={18} className="stroke-[3]" /> Back
+              </button>
+
+              <div className="flex items-stretch rounded-full overflow-hidden border border-white/10 bg-[#1c1d22] p-0.5 select-none shadow-inner h-[40px] shrink-0">
+                {[0.25, 0.5, 1.0].map((speed) => (
+                  <button
+                    key={speed}
+                    onClick={() => {
+                      setSimSpeed(speed);
+                      sendAction("set-sim-speed", speed);
+                    }}
+                    className={`px-4 text-xs font-semibold font-mono rounded-full transition-all cursor-pointer h-full flex items-center justify-center ${
+                      simSpeed === speed
+                        ? "bg-white/15 text-sky-400 shadow-sm"
+                        : "text-white/60 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    {speed}x
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex-1 max-w-sm mx-4">
@@ -430,62 +522,86 @@ export default function App() {
           />
         </div>
 
-        {mode === "edit" && (
-          <div className="flex gap-2 items-center overflow-x-auto">
+        <div className="flex gap-4 items-center">
+          {/* Debug View Toggle Switch */}
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full select-none shadow-inner shrink-0">
+            <Eye size={14} className={showDebugBodies ? "text-emerald-400 animate-pulse" : "text-white/40"} />
+            <span className="text-[11px] font-semibold text-white/70 uppercase tracking-wide">
+              Debug
+            </span>
             <button
-              onClick={() => sendAction("undo")}
-              disabled={!canUndo}
-              className={`flex items-center gap-2 px-3 py-2 ${canUndo ? "bg-white/10 hover:bg-white/20" : "bg-white/5 opacity-50 cursor-not-allowed"} rounded-full font-medium transition-all shadow-lg shrink-0`}
-              title="Undo"
+              id="debug-toggle-switch"
+              onClick={() => sendAction("toggle-debug-rendering")}
+              className={`w-8 h-4.5 rounded-full transition-colors relative focus:outline-none cursor-pointer flex items-center ${
+                showDebugBodies ? "bg-emerald-500" : "bg-white/10"
+              }`}
+              title="Toggle Physics Wireframes"
             >
-              <Undo2 size={18} />
-            </button>
-            <button
-              onClick={() => sendAction("redo")}
-              disabled={!canRedo}
-              className={`flex items-center gap-2 px-3 py-2 ${canRedo ? "bg-white/10 hover:bg-white/20" : "bg-white/5 opacity-50 cursor-not-allowed"} rounded-full font-medium transition-all shadow-lg shrink-0`}
-              title="Redo"
-            >
-              <Redo2 size={18} />
-            </button>
-
-            <div className="w-px h-8 bg-white/20 my-auto mx-2 shrink-0" />
-
-            <button
-              ref={addButtonRef}
-              onClick={() => {
-                const nextOpen = !isAddMenuOpen;
-                setIsAddMenuOpen(nextOpen);
-                if (nextOpen) {
-                  sendAction("deselect-all");
-                }
-              }}
-              className={`flex items-center gap-2 px-5 py-2 rounded-full font-medium transition-all shadow-lg shrink-0 cursor-pointer ${
-                isAddMenuOpen ? "bg-blue-600 text-white font-semibold" : "bg-white/10 hover:bg-white/20 text-white"
-               }`}
-            >
-              <Plus size={18} />
-              <span>Add</span>
+              <span
+                className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform duration-200 ${
+                  showDebugBodies ? "translate-x-3.5" : "translate-x-0"
+                }`}
+              />
             </button>
           </div>
-        )}
 
-        {mode === "play" && (
-          <div className="flex gap-2 items-center">
-            <button
-              onClick={() => sendAction("shake-marbles")}
-              className="flex items-center gap-2 px-6 py-2 bg-cyan-500/80 hover:bg-cyan-500 rounded-full font-medium transition-all shadow-lg"
-            >
-              ⚡ Shake
-            </button>
-            <button
-              onClick={() => sendAction("reset-marbles")}
-              className="flex items-center gap-2 px-6 py-2 bg-red-500/80 hover:bg-red-500 rounded-full font-medium transition-all shadow-lg"
-            >
-              <RefreshCw size={20} /> Reset
-            </button>
-          </div>
-        )}
+          {mode === "edit" && (
+            <div className="flex gap-2 items-center overflow-x-auto">
+              <button
+                onClick={() => sendAction("undo")}
+                disabled={!canUndo}
+                className={`flex items-center gap-2 px-3 py-2 ${canUndo ? "bg-white/10 hover:bg-white/20" : "bg-white/5 opacity-50 cursor-not-allowed"} rounded-full font-medium transition-all shadow-lg shrink-0`}
+                title="Undo"
+              >
+                <Undo2 size={18} />
+              </button>
+              <button
+                onClick={() => sendAction("redo")}
+                disabled={!canRedo}
+                className={`flex items-center gap-2 px-3 py-2 ${canRedo ? "bg-white/10 hover:bg-white/20" : "bg-white/5 opacity-50 cursor-not-allowed"} rounded-full font-medium transition-all shadow-lg shrink-0`}
+                title="Redo"
+              >
+                <Redo2 size={18} />
+              </button>
+
+              <div className="w-px h-8 bg-white/20 my-auto mx-2 shrink-0" />
+
+              <button
+                ref={addButtonRef}
+                onClick={() => {
+                  const nextOpen = !isAddMenuOpen;
+                  setIsAddMenuOpen(nextOpen);
+                  if (nextOpen) {
+                    sendAction("deselect-all");
+                  }
+                }}
+                className={`flex items-center gap-2 px-5 py-2 rounded-full font-medium transition-all shadow-lg shrink-0 cursor-pointer ${
+                  isAddMenuOpen ? "bg-blue-600 text-white font-semibold" : "bg-white/10 hover:bg-white/20 text-white"
+                }`}
+              >
+                <Plus size={18} />
+                <span>Add</span>
+              </button>
+            </div>
+          )}
+
+          {mode === "play" && (
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={() => sendAction("shake-marbles")}
+                className="flex items-center gap-2 px-6 py-2 bg-cyan-500/80 hover:bg-cyan-500 rounded-full font-medium transition-all shadow-lg"
+              >
+                ⚡ Shake
+              </button>
+              <button
+                onClick={() => sendAction("reset-marbles")}
+                className="flex items-center gap-2 px-6 py-2 bg-red-500/80 hover:bg-red-500 rounded-full font-medium transition-all shadow-lg"
+              >
+                <RefreshCw size={20} /> Reset
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       <main
@@ -595,6 +711,31 @@ export default function App() {
                 <div className="flex flex-col min-w-0">
                   <span className="text-sm font-semibold text-white leading-none">Ramp</span>
                   <span className="text-[10px] text-gray-400 mt-1 leading-none">Guide and slide marbles</span>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "curved_ramp");
+                  setIsAddMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
+                    <path d="M 8,26 C 15,12 25,12 32,26" fill="none" stroke="#2563eb" strokeWidth="5" strokeLinecap="round" opacity="0.3" />
+                    <path d="M 8,25 C 15,11 25,11 32,25" fill="none" stroke="url(#curvedRampGrad)" strokeWidth="5" strokeLinecap="round" />
+                    <path d="M 8,25 C 15,11 25,11 32,25" fill="none" stroke="#fff" strokeWidth="0.75" strokeLinecap="round" opacity="0.4" />
+                    <defs>
+                      <linearGradient id="curvedRampGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#c084fc" />
+                        <stop offset="100%" stopColor="#818cf8" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-semibold text-white leading-none">Curved Ramp</span>
+                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Custom Bezier wave slide</span>
                 </div>
               </button>
               <button
@@ -792,7 +933,7 @@ export default function App() {
               </div>
             )}
 
-            {selectedPartType !== "marble" && (
+            {selectedPartType !== "marble" && selectedPartType !== "curved_ramp" && (
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => sendAction("scale-part", 1)}
@@ -829,7 +970,7 @@ export default function App() {
                 />
               </div>
 
-              {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "bin" || selectedPartType === "scatter_gate" || selectedPartType === "boost_gate") && selectedPartW !== null && selectedPartH !== null && (
+              {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "scatter_gate" || selectedPartType === "boost_gate") && selectedPartW !== null && selectedPartH !== null && (
                 <div className="border border-white/10 rounded-lg p-3 bg-white/5 flex flex-col gap-3 font-sans">
                   <div className="flex flex-col items-center">
                     <span className="text-[10px] font-bold text-white/40 tracking-wider uppercase">
@@ -918,6 +1059,45 @@ export default function App() {
                     <div className="flex justify-between text-[9px] text-white/40 mt-1">
                       <span>Light Boost (1.2x)</span>
                       <span>Hyper (3.0x+)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedPartType === "curved_ramp" && selectedPartSegments !== null && (
+                <div className="border border-white/10 rounded-lg p-3 bg-white/5 flex flex-col gap-2 font-sans w-full">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] font-bold text-white/40 tracking-wider uppercase">
+                      Curved Ramp Segments
+                    </span>
+                    <div className="w-full h-px bg-white/10 mt-1" />
+                  </div>
+
+                  <div className="flex flex-col gap-1 mt-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-medium text-white/80">Segments</span>
+                      <span className="font-mono text-emerald-400 font-bold">{selectedPartSegments}</span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="4"
+                      max="60"
+                      step="1"
+                      value={selectedPartSegments}
+                      onChange={(e) => {
+                        const segments = parseInt(e.target.value, 10);
+                        setSelectedPartSegments(segments);
+                        sendAction("change-part-property", { segments });
+                      }}
+                      onMouseUp={() => sendAction("save-state")}
+                      onTouchEnd={() => sendAction("save-state")}
+                      className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    />
+
+                    <div className="flex justify-between text-[9px] text-white/40 mt-1">
+                      <span>Coarse (4)</span>
+                      <span>Smooth (60)</span>
                     </div>
                   </div>
                 </div>

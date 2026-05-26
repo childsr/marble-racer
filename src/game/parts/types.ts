@@ -1,8 +1,18 @@
 import Phaser from "phaser";
 
+export type PartType =
+  | "ramp"
+  | "curved_ramp"
+  | "pin"
+  | "spinner"
+  | "finish_zone"
+  | "marble"
+  | "scatter_gate"
+  | "boost_gate"
+//
 export interface Part {
   id: string;
-  type: "ramp" | "pin" | "spinner" | "bin" | "finish_zone" | "marble" | "scatter_gate" | "boost_gate";
+  type: PartType
   graphic: any;
   body: MatterJS.BodyType;
   w: number;
@@ -11,6 +21,13 @@ export interface Part {
   color: number;
   spinnerSpeed?: number;
   boostAmount?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  cx?: number;
+  cy?: number;
+  segments?: number;
 }
 
 export interface SerializedPart {
@@ -24,4 +41,16 @@ export interface SerializedPart {
   color: number;
   spinnerSpeed?: number;
   boostAmount?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  cx?: number;
+  cy?: number;
+  segments?: number;
+}
+
+// IGNORE FOR NOW
+export interface PartConfig<Params> {
+  createBody: (params: Params) => MatterJS.Body
 }
