@@ -4,7 +4,7 @@
  */
 
 import { GameContainer } from "./game/GameContainer";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Play,
   Edit,
@@ -92,6 +92,140 @@ export default function App() {
   const speedButtonRef = useRef<HTMLButtonElement>(null);
   const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
   const [simSpeed, setSimSpeed] = useState<number>(1.0);
+
+  const setupDragGhost = (type: string, e: React.DragEvent) => {
+    const container = document.getElementById("phaser-game-container");
+    let S = 0.5;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const virtualWidth = 1920;
+      const virtualHeight = 1080;
+      const virtualAspect = virtualWidth / virtualHeight;
+      const actualWidth = rect.width;
+      const actualHeight = rect.height;
+      const actualAspect = actualWidth / actualHeight;
+      if (actualAspect > virtualAspect) {
+        S = actualHeight / virtualHeight;
+      } else {
+        S = actualWidth / virtualWidth;
+      }
+    }
+
+    let W = 300 * S;
+    let H = 20 * S;
+    let html = "";
+
+    if (type === "ramp") {
+      W = 300 * S;
+      H = 20 * S;
+      html = `
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow: visible; opacity: 0.65;">
+          <rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff" />
+        </svg>
+      `;
+    } else if (type === "curved_ramp") {
+      W = 300 * S;
+      const H_curved = 70 * S;
+      H = H_curved;
+      html = `
+        <svg width="${W}" height="${H_curved}" viewBox="0 0 ${W} ${H_curved}" style="overflow: visible; opacity: 0.65;">
+          <circle cx="${10 * S}" cy="${50 * S}" r="${10 * S}" fill="#9b5de5" />
+          <path d="M ${10 * S},${50 * S} Q ${W / 2},${0 * S} ${W - 10 * S},${50 * S}" fill="none" stroke="#9b5de5" stroke-width="${20 * S}" />
+          <circle cx="${W - 10 * S}" cy="${50 * S}" r="${10 * S}" fill="#9b5de5" />
+        </svg>
+      `;
+    } else if (type === "pin") {
+      W = 28 * S;
+      H = 28 * S;
+      html = `
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow: visible; opacity: 0.65;">
+          <circle cx="${W / 2}" cy="${H / 2}" r="${14 * S}" fill="#4fc3f7" />
+        </svg>
+      `;
+    } else if (type === "marble") {
+      W = 28 * S;
+      H = 28 * S;
+      html = `
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow: visible; opacity: 0.65;">
+          <circle cx="${W / 2}" cy="${H / 2}" r="${14 * S}" fill="#ff4444" />
+        </svg>
+      `;
+    } else if (type === "spinner") {
+      W = 300 * S;
+      H = 25 * S;
+      html = `
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow: visible; opacity: 0.65;">
+          <rect x="0" y="0" width="${W}" height="${H}" fill="#ff5252" />
+        </svg>
+      `;
+    } else if (type === "finish_zone") {
+      W = 150 * S;
+      H = 80 * S;
+      html = `
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow: visible; opacity: 0.65;">
+          <rect x="1.5" y="1.5" width="${W - 3}" height="${H - 3}" fill="#00e676" fill-opacity="0.4" stroke="#ffffff" stroke-width="3" stroke-opacity="0.85" />
+        </svg>
+      `;
+    } else if (type === "scatter_gate") {
+      W = 80 * S;
+      H = 50 * S;
+      html = `
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow: visible; opacity: 0.65;">
+          <!-- Left side post -->
+          <polygon points="0,0 ${15 * S},0 ${19 * S},${17.5 * S} ${19 * S},${32.5 * S} ${15 * S},${50 * S} 0,${50 * S}" fill="#3c3f58" stroke="#1f2130" stroke-width="1.5" />
+          <!-- Right side post -->
+          <polygon points="${W},0 ${W - 15 * S},0 ${W - 19 * S},${17.5 * S} ${W - 19 * S},${32.5 * S} ${W - 15 * S},${50 * S} ${W},${50 * S}" fill="#3c3f58" stroke="#1f2130" stroke-width="1.5" />
+          <!-- Force field line -->
+          <rect x="${10 * S}" y="${22 * S}" width="${W - 20 * S}" height="${6 * S}" fill="#ffeb3b" fill-opacity="0.6" />
+          <!-- Inner shining field -->
+          <rect x="${10 * S}" y="${24 * S}" width="${W - 20 * S}" height="${2 * S}" fill="#ffffff" fill-opacity="0.95" />
+        </svg>
+      `;
+    } else if (type === "boost_gate") {
+      W = 80 * S;
+      H = 50 * S;
+      html = `
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow: visible; opacity: 0.65;">
+          <!-- Left side post -->
+          <polygon points="0,0 ${15 * S},0 ${19 * S},${17.5 * S} ${19 * S},${32.5 * S} ${15 * S},${50 * S} 0,${50 * S}" fill="#2a1b3d" stroke="#d946ef" stroke-width="1.5" />
+          <!-- Right side post -->
+          <polygon points="${W},0 ${W - 15 * S},0 ${W - 19 * S},${17.5 * S} ${W - 19 * S},${32.5 * S} ${W - 15 * S},${50 * S} ${W},${50 * S}" fill="#2a1b3d" stroke="#d946ef" stroke-width="1.5" />
+          <!-- Force field line -->
+          <rect x="${10 * S}" y="${21 * S}" width="${W - 20 * S}" height="${8 * S}" fill="#d946ef" fill-opacity="0.5" />
+          <!-- Inner shining field -->
+          <rect x="${10 * S}" y="${24 * S}" width="${W - 20 * S}" height="${2 * S}" fill="#ffffff" fill-opacity="0.9" />
+        </svg>
+      `;
+    }
+
+    let ghost = document.getElementById("drag-ghost-container");
+    if (!ghost) {
+      ghost = document.createElement("div");
+      ghost.id = "drag-ghost-container";
+      ghost.style.position = "absolute";
+      ghost.style.left = "-9999px";
+      ghost.style.top = "-9999px";
+      ghost.style.zIndex = "-1000";
+      ghost.style.pointerEvents = "none";
+      document.body.appendChild(ghost);
+    }
+
+    ghost.innerHTML = html;
+    ghost.style.width = W + "px";
+    ghost.style.height = H + "px";
+
+    const childSvg = ghost.querySelector("svg");
+    if (childSvg) {
+      childSvg.style.filter = "drop-shadow(0 4px 6px rgba(0,0,0,0.4))";
+    }
+
+    let dragYOffset = H / 2;
+    if (type === "pin" || type === "marble") {
+      dragYOffset = H / 2 + 20;
+    }
+
+    e.dataTransfer.setDragImage(ghost, W / 2, dragYOffset);
+  };
 
   useEffect(() => {
     const handleOutsideClick = (e: PointerEvent) => {
@@ -182,6 +316,18 @@ export default function App() {
     return () =>
       window.removeEventListener("phaser-state-change", handleStateChange);
   }, [selectedPartId]);
+ 
+  useEffect(() => {
+    const handlePhaserEditorAction = (e: any) => {
+      if (e.detail && e.detail.action === "add-part") {
+        setIsAddMenuOpen(false);
+      }
+    };
+    window.addEventListener("phaser-editor-action", handlePhaserEditorAction);
+    return () => {
+      window.removeEventListener("phaser-editor-action", handlePhaserEditorAction);
+    };
+  }, []);
 
   useEffect(() => {
     let needsSave = false;
@@ -429,56 +575,34 @@ export default function App() {
         <div className="flex gap-2 items-center relative">
           {mode === "edit" ? (
             <>
-              <div className="flex items-stretch rounded-full overflow-hidden shadow-lg border border-white/10 shrink-0 select-none h-[40px]">
-                <button
-                  onClick={() => {
-                    sendAction("set-sim-speed", simSpeed);
-                    sendAction("toggle-mode");
-                  }}
-                  className="flex items-center gap-2 pl-6 pr-4 py-2 font-semibold transition-all text-white cursor-pointer bg-emerald-600 hover:bg-emerald-500"
-                >
-                  <Play size={18} className="fill-white" /> Play {simSpeed !== 1 ? `(${simSpeed}x)` : ""}
-                </button>
+              <button
+                onClick={() => {
+                  sendAction("set-sim-speed", simSpeed);
+                  sendAction("toggle-mode");
+                }}
+                className="flex items-center gap-2 px-6 rounded-full font-semibold transition-all text-white cursor-pointer bg-emerald-600 hover:bg-emerald-500 shadow-md h-[40px] shrink-0"
+              >
+                <Play size={18} className="fill-white" /> Play
+              </button>
 
-                <button
-                  ref={speedButtonRef}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsSpeedMenuOpen(!isSpeedMenuOpen);
-                  }}
-                  className="flex items-center justify-center px-3 border-l border-white/10 transition-all text-white cursor-pointer bg-emerald-600 hover:bg-emerald-500"
-                  title="Simulation speed options"
-                >
-                  <ChevronDown size={14} />
-                </button>
+              <div className="flex items-stretch rounded-full overflow-hidden border border-white/10 bg-[#1c1d22] p-0.5 select-none shadow-inner h-[40px] shrink-0">
+                {[0.25, 0.5, 1.0].map((speed) => (
+                  <button
+                    key={speed}
+                    onClick={() => {
+                      setSimSpeed(speed);
+                      sendAction("set-sim-speed", speed);
+                    }}
+                    className={`px-4 text-xs font-semibold font-mono rounded-full transition-all cursor-pointer h-full flex items-center justify-center ${
+                      simSpeed === speed
+                        ? "bg-white/15 text-sky-400 shadow-sm"
+                        : "text-white/60 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    {speed}x
+                  </button>
+                ))}
               </div>
-
-              {isSpeedMenuOpen && (
-                <div
-                  ref={speedMenuRef}
-                  className="absolute top-full left-0 mt-2 bg-[#1c1d22] border border-white/10 rounded-xl shadow-2xl py-1.5 min-w-[130px] z-[110] flex flex-col"
-                >
-                  <div className="px-3 py-1 text-[9px] font-bold text-white/40 uppercase tracking-wider mb-1">
-                    Sim Speed
-                  </div>
-                  {[0.25, 0.5, 1.0].map((speed) => (
-                    <button
-                      key={speed}
-                      onClick={() => {
-                        setSimSpeed(speed);
-                        sendAction("set-sim-speed", speed);
-                        setIsSpeedMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-xs font-semibold font-mono transition-colors hover:bg-white/10 flex items-center justify-between ${
-                        simSpeed === speed ? "text-emerald-400 bg-emerald-500/10" : "text-white/80"
-                      }`}
-                    >
-                      <span>{speed}x</span>
-                      {simSpeed === speed && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-                    </button>
-                  ))}
-                </div>
-              )}
             </>
           ) : (
             <>
@@ -691,14 +815,19 @@ export default function App() {
                   sendAction("add-part", "ramp");
                   setIsAddMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "ramp");
+                  setupDragGhost("ramp", e);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
                     <g transform="rotate(-15 20 20)">
-                      <rect x="6" y="19" width="28" height="5" rx="1.5" fill="#000" opacity="0.3" />
-                      <rect x="6" y="17" width="28" height="5" rx="1.5" fill="url(#rampGrad)" stroke="#64748b" strokeWidth="1" />
-                      <line x1="8" y1="18.5" x2="32" y2="18.5" stroke="#fff" strokeWidth="0.75" strokeLinecap="round" opacity="0.5" />
+                      <rect x="6" y="19" width="28" height="5" rx="1.5" fill="#000" opacity="0.3" id="ramp_svg_shadow" />
+                      <rect x="6" y="17" width="28" height="5" rx="1.5" fill="url(#rampGrad)" stroke="#64748b" strokeWidth="1" id="ramp_svg_body" />
+                      <line x1="8" y1="18.5" x2="32" y2="18.5" stroke="#fff" strokeWidth="0.75" strokeLinecap="round" opacity="0.5" id="ramp_svg_glare" />
                     </g>
                     <defs>
                       <linearGradient id="rampGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -718,13 +847,18 @@ export default function App() {
                   sendAction("add-part", "curved_ramp");
                   setIsAddMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "curved_ramp");
+                  setupDragGhost("curved_ramp", e);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
-                    <path d="M 8,26 C 15,12 25,12 32,26" fill="none" stroke="#2563eb" strokeWidth="5" strokeLinecap="round" opacity="0.3" />
-                    <path d="M 8,25 C 15,11 25,11 32,25" fill="none" stroke="url(#curvedRampGrad)" strokeWidth="5" strokeLinecap="round" />
-                    <path d="M 8,25 C 15,11 25,11 32,25" fill="none" stroke="#fff" strokeWidth="0.75" strokeLinecap="round" opacity="0.4" />
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <path d="M 8,26 C 15,12 25,12 32,26" fill="none" stroke="#2563eb" strokeWidth="5" strokeLinecap="round" opacity="0.3" id="curved_svg_shadow" />
+                    <path d="M 8,25 C 15,11 25,11 32,25" fill="none" stroke="url(#curvedRampGrad)" strokeWidth="5" strokeLinecap="round" id="curved_svg_body" />
+                    <path d="M 8,25 C 15,11 25,11 32,25" fill="none" stroke="#fff" strokeWidth="0.75" strokeLinecap="round" opacity="0.4" id="curved_svg_glare" />
                     <defs>
                       <linearGradient id="curvedRampGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stopColor="#c084fc" />
@@ -743,14 +877,19 @@ export default function App() {
                   sendAction("add-part", "pin");
                   setIsAddMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "pin");
+                  setupDragGhost("pin", e);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
-                    <circle cx="20" cy="20" r="9" fill="#4fc3f7" opacity="0.15" />
-                    <circle cx="20" cy="20" r="7" fill="#1e293b" stroke="#475569" strokeWidth="1" />
-                    <circle cx="20" cy="20" r="5" fill="url(#pinSphereGrad)" stroke="#4fc3f7" strokeWidth="0.5" />
-                    <circle cx="18" cy="18" r="1.2" fill="#fff" opacity="0.8" />
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <circle cx="20" cy="20" r="9" fill="#4fc3f7" opacity="0.15" id="pin_svg_shadow" />
+                    <circle cx="20" cy="20" r="7" fill="#1e293b" stroke="#475569" strokeWidth="1" id="pin_svg_border" />
+                    <circle cx="20" cy="20" r="5" fill="url(#pinSphereGrad)" stroke="#4fc3f7" strokeWidth="0.5" id="pin_svg_body" />
+                    <circle cx="18" cy="18" r="1.2" fill="#fff" opacity="0.8" id="pin_svg_glare" />
                     <defs>
                       <radialGradient id="pinSphereGrad" cx="35%" cy="35%" r="65%">
                         <stop offset="0%" stopColor="#e0f7fa" />
@@ -770,13 +909,18 @@ export default function App() {
                   sendAction("add-part", "marble");
                   setIsAddMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "marble");
+                  setupDragGhost("marble", e);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
-                    <circle cx="20" cy="20" r="10" fill="#ff4444" opacity="0.15" />
-                    <circle cx="20" cy="20" r="8" fill="url(#marbleSphereGrad)" stroke="#ff4444" strokeWidth="0.5" />
-                    <circle cx="17.5" cy="17.5" r="1.5" fill="#fff" opacity="0.8" />
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <circle cx="20" cy="20" r="10" fill="#ff4444" opacity="0.15" id="marble_svg_shadow" />
+                    <circle cx="20" cy="20" r="8" fill="url(#marbleSphereGrad)" stroke="#ff4444" strokeWidth="0.5" id="marble_svg_body" />
+                    <circle cx="17.5" cy="17.5" r="1.5" fill="#fff" opacity="0.8" id="marble_svg_glare" />
                     <defs>
                       <radialGradient id="marbleSphereGrad" cx="35%" cy="35%" r="65%">
                         <stop offset="0%" stopColor="#ffdcd1" />
@@ -796,14 +940,19 @@ export default function App() {
                   sendAction("add-part", "spinner");
                   setIsAddMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "spinner");
+                  setupDragGhost("spinner", e);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0 animate-spin [animation-duration:3s]">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
-                    <circle cx="20" cy="20" r="14" fill="none" stroke="#ff5252" strokeWidth="1" strokeDasharray="3 3" opacity="0.25" />
-                    <rect x="7" y="18" width="26" height="4" rx="1.5" fill="url(#spinnerGrad)" stroke="#b91c1c" strokeWidth="0.75" />
-                    <circle cx="20" cy="20" r="3.5" fill="#1e293b" stroke="#f87171" strokeWidth="1" />
-                    <circle cx="20" cy="20" r="1.2" fill="#f87171" />
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <circle cx="20" cy="20" r="14" fill="none" stroke="#ff5252" strokeWidth="1" strokeDasharray="3 3" opacity="0.25" id="spinner_svg_guide" />
+                    <rect x="7" y="18" width="26" height="4" rx="1.5" fill="url(#spinnerGrad)" stroke="#b91c1c" strokeWidth="0.75" id="spinner_svg_blade" />
+                    <circle cx="20" cy="20" r="3.5" fill="#1e293b" stroke="#f87171" strokeWidth="1" id="spinner_svg_pin" />
+                    <circle cx="20" cy="20" r="1.2" fill="#f87171" id="spinner_svg_center" />
                     <defs>
                       <linearGradient id="spinnerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                         <stop offset="0%" stopColor="#fca5a5" />
@@ -823,18 +972,23 @@ export default function App() {
                   sendAction("add-part", "finish_zone");
                   setIsAddMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/30 rounded-lg transition-all cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "finish_zone");
+                  setupDragGhost("finish_zone", e);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
-                    <rect x="5" y="10" width="30" height="20" rx="3" fill="#00e676" fillOpacity="0.12" stroke="#00e676" strokeWidth="1.5" strokeDasharray="3 2" />
-                    <rect x="8" y="13" width="24" height="14" rx="1.5" fill="none" stroke="#00e676" strokeWidth="1" strokeOpacity="0.3" />
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <rect x="5" y="10" width="30" height="20" rx="3" fill="#00e676" fillOpacity="0.12" stroke="#00e676" strokeWidth="1.5" strokeDasharray="3 2" id="finish_zone_svg_outer" />
+                    <rect x="8" y="13" width="24" height="14" rx="1.5" fill="none" stroke="#00e676" strokeWidth="1" strokeOpacity="0.3" id="finish_zone_svg_inner" />
                     <g transform="translate(14, 13) scale(0.6)">
-                      <line x1="4" y1="4" x2="4" y2="22" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
-                      <path d="M4.5 4 h12 v9 h-12 Z" fill="#ffffff" stroke="#ffffff" strokeWidth="0.5" />
-                      <rect x="4.5" y="4" width="4" height="4.5" fill="#111827" />
-                      <rect x="12.5" y="4" width="4" height="4.5" fill="#111827" />
-                      <rect x="8.5" y="8.5" width="4" height="4.5" fill="#111827" />
+                      <line x1="4" y1="4" x2="4" y2="22" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" id="finish_zone_flagpole" />
+                      <path d="M4.5 4 h12 v9 h-12 Z" fill="#ffffff" stroke="#ffffff" strokeWidth="0.5" id="finish_zone_flag" />
+                      <rect x="4.5" y="4" width="4" height="4.5" fill="#111827" id="finish_zone_check1" />
+                      <rect x="12.5" y="4" width="4" height="4.5" fill="#111827" id="finish_zone_check2" />
+                      <rect x="8.5" y="8.5" width="4" height="4.5" fill="#111827" id="finish_zone_check3" />
                     </g>
                   </svg>
                 </div>
@@ -848,17 +1002,22 @@ export default function App() {
                   sendAction("add-part", "scatter_gate");
                   setIsAddMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/10 hover:border-yellow-500/30 rounded-lg transition-all cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "scatter_gate");
+                  setupDragGhost("scatter_gate", e);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/10 hover:border-yellow-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
-                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" />
-                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" />
-                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" />
-                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" />
-                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#fff59d" opacity="0.4" />
-                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" />
-                    <line x1="12" y1="20" x2="28" y2="20" stroke="#fdeb1d" strokeWidth="1" />
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="scatter_svg_left_post" />
+                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" id="scatter_svg_left_bracket" />
+                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="scatter_svg_right_post" />
+                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" id="scatter_svg_right_bracket" />
+                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#fff59d" opacity="0.4" id="scatter_svg_field" />
+                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" id="scatter_svg_laser_glare" />
+                    <line x1="12" y1="20" x2="28" y2="20" stroke="#fdeb1d" strokeWidth="1" id="scatter_svg_laser" />
                   </svg>
                 </div>
                 <div className="flex flex-col min-w-0">
@@ -871,18 +1030,23 @@ export default function App() {
                   sendAction("add-part", "boost_gate");
                   setIsAddMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/10 hover:border-purple-500/30 rounded-lg transition-all cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "boost_gate");
+                  setupDragGhost("boost_gate", e);
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/10 hover:border-purple-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none">
-                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" />
-                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" />
-                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" />
-                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" />
-                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#e9d5ff" opacity="0.4" />
-                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" />
-                    <path d="M16,16 L20,20 L24,16" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M16,21 L20,25 L24,21" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="boost_svg_left_post" />
+                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" id="boost_svg_left_bracket" />
+                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="boost_svg_right_post" />
+                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" id="boost_svg_right_bracket" />
+                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#e9d5ff" opacity="0.4" id="boost_svg_field" />
+                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" id="boost_svg_laser_glare" />
+                    <path d="M16,16 L20,20 L24,16" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" id="boost_svg_arrow1" />
+                    <path d="M16,21 L20,25 L24,21" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" id="boost_svg_arrow2" />
                   </svg>
                 </div>
                 <div className="flex flex-col min-w-0">

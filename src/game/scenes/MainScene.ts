@@ -76,6 +76,7 @@ export class MainScene extends Phaser.Scene {
 
   marbles: MatterJS.BodyType[] = [];
   marbleGraphics: Phaser.GameObjects.Shape[] = [];
+  marbleGlows: (Phaser.GameObjects.Shape | Phaser.GameObjects.Image)[] = [];
   numMarbles = 8;
   marbleColors = [
     0xff4444, 0x44ff44, 0x4444ff, 0xffff44, 0xff44ff, 0x44ffff, 0xff8844,
@@ -99,6 +100,19 @@ export class MainScene extends Phaser.Scene {
     graphics.fillStyle(0xffffff, 1);
     graphics.fillCircle(16, 16, 16);
     graphics.generateTexture("flare", 32, 32);
+
+    // Create radial glow texture that fades out nicely
+    if (!this.textures.exists("radial_glow")) {
+      const canvas = this.textures.createCanvas("radial_glow", 64, 64);
+      const ctx = canvas.context;
+      const gradient = ctx.createRadialGradient(32, 32, 10, 32, 32, 32);
+      gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
+      gradient.addColorStop(0.3, "rgba(255, 255, 255, 0.6)");
+      gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 64, 64);
+      canvas.refresh();
+    }
   }
 
   create() {
@@ -257,18 +271,20 @@ export class MainScene extends Phaser.Scene {
     this.activeGlows = [];
 
     if (mode === "play") {
-      this.selectParts([]);
-      this.updateSelectionBox();
+      this.selectedParts = [];
     }
 
     this.mode = mode;
+    this.updateSelectionBox();
     this.finishedMarblesSet.clear();
     if (mode === "edit") {
       // Remove marbles
       this.marbles.forEach((m) => this.matter.world.remove(m));
       this.marbleGraphics.forEach((g) => g.destroy());
+      this.marbleGlows.forEach((g) => g.destroy());
       this.marbles = [];
       this.marbleGraphics = [];
+      this.marbleGlows = [];
       this.finishList = [];
       // Reset spinners and restore marbles visibility
       this.parts.forEach((part) => {
@@ -395,6 +411,10 @@ export class MainScene extends Phaser.Scene {
           if (currentGraphic) {
             currentGraphic.destroy();
           }
+          const currentGlow = this.marbleGlows[currentIdx];
+          if (currentGlow) {
+            currentGlow.destroy();
+          }
 
           // Play explosive particle burst upon despawn/removal
           const expl = this.add.particles(0, 0, "flare", {
@@ -414,17 +434,36 @@ export class MainScene extends Phaser.Scene {
           this.matter.world.remove(marble);
           this.marbles.splice(currentIdx, 1);
           this.marbleGraphics.splice(currentIdx, 1);
+          this.marbleGlows.splice(currentIdx, 1);
         }
       });
 
       for (let i = 0; i < this.marbles.length; i++) {
         const marble = this.marbles[i];
         const graphic = this.marbleGraphics[i];
+        const glow = this.marbleGlows[i];
         graphic.x = marble.position.x;
         graphic.y = marble.position.y;
         graphic.rotation = marble.angle;
+        if (glow) {
+          glow.x = marble.position.x;
+          glow.y = marble.position.y;
+        }
       }
     }
+
+    // Sync positions and settings for all edit-mode marble glows
+    this.parts.forEach(part => {
+      if (part.type === "marble" && part.graphic) {
+        const glow = (part.graphic as any).glow;
+        if (glow) {
+          glow.x = part.graphic.x;
+          glow.y = part.graphic.y;
+          glow.setVisible(part.graphic.visible);
+          glow.setScale(part.graphic.scaleX, part.graphic.scaleY);
+        }
+      }
+    });
   }
 
   setupInput() {
@@ -747,9 +786,21 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  addNewPart(type: string) {
-    const centerX = this.cameras.main.centerX;
-    const centerY = this.cameras.main.centerY;
+  addNewPart(payload: string | { type: string; x?: number; y?: number }) {
+    let type: string;
+    let x: number | undefined;
+    let y: number | undefined;
+
+    if (typeof payload === "string") {
+      type = payload;
+    } else {
+      type = payload.type;
+      x = payload.x;
+      y = payload.y;
+    }
+
+    const centerX = x !== undefined ? x : this.cameras.main.centerX;
+    const centerY = y !== undefined ? y : this.cameras.main.centerY;
 
     let part;
     if (type === "ramp") {
@@ -901,6 +952,10 @@ export class MainScene extends Phaser.Scene {
     this.selectionBoxes.forEach((box) => box.destroy());
     this.selectionBoxes = [];
     this.curvedRampsRedrawMap.clear();
+
+    if (this.mode !== "edit") {
+      return;
+    }
 
     this.selectedParts.forEach((part) => {
       let shape: any;
@@ -1464,8 +1519,16 @@ export class MainScene extends Phaser.Scene {
       graphic.setDepth(50);
       graphic.setVisible(true);
 
+      const glow = this.add.image(x, y, "radial_glow");
+      glow.setTint(color);
+      glow.setAlpha(0.3);
+      glow.setDisplaySize(42, 42);
+      glow.setDepth(49);
+      glow.setVisible(true);
+
       this.marbles.push(marble);
       this.marbleGraphics.push(graphic);
+      this.marbleGlows.push(glow);
 
       part.graphic.setVisible(false);
       part.body.isSensor = true;
@@ -1481,8 +1544,10 @@ export class MainScene extends Phaser.Scene {
 
     this.marbles.forEach((m) => this.matter.world.remove(m));
     this.marbleGraphics.forEach((g) => g.destroy());
+    this.marbleGlows.forEach((g) => g.destroy());
     this.marbles = [];
     this.marbleGraphics = [];
+    this.marbleGlows = [];
     this.marblesToRemove = [];
     this.finishedMarblesSet.clear();
     this.finishList = [];
@@ -1511,8 +1576,22 @@ export class MainScene extends Phaser.Scene {
   applyPartRenderingMode(part: Part) {
     if (part.type === "marble" && this.mode === "play") {
       part.graphic.setVisible(false);
+      this.tweens.killTweensOf(part.graphic);
+      part.graphic.setScale(1);
     } else {
       part.graphic.setVisible(true);
+      if (part.type === "marble" && this.mode === "edit") {
+        if (!this.tweens.isTweening(part.graphic)) {
+          this.tweens.add({
+            targets: part.graphic,
+            scale: 1.18,
+            yoyo: true,
+            repeat: -1,
+            duration: 900,
+            ease: "Sine.easeInOut"
+          });
+        }
+      }
     }
   }
 
@@ -1545,6 +1624,9 @@ export class MainScene extends Phaser.Scene {
 
     // 4. Active dynamic marbles visibility
     this.marbleGraphics.forEach((g) => {
+      g.setVisible(true);
+    });
+    this.marbleGlows.forEach((g) => {
       g.setVisible(true);
     });
 

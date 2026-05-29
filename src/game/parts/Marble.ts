@@ -27,6 +27,23 @@ export function createMarble(
   const graphic = scene.add.circle(x, y, radius, color);
   graphic.setDepth(50); // Marbles on top
 
+  // Create subtle beautiful radial glow just beneath depth 50 of the marble
+  const glow = scene.add.image(x, y, "radial_glow");
+  glow.setTint(color);
+  glow.setAlpha(0.3);
+  glow.setDisplaySize(42, 42);
+  glow.setDepth(49);
+  (graphic as any).glow = glow;
+
+  // Custom destroy flow to clean up glow when graphic is destroyed
+  const originalDestroy = graphic.destroy;
+  graphic.destroy = function (fromScene?: boolean) {
+    if (glow && glow.active) {
+      glow.destroy(fromScene);
+    }
+    originalDestroy.call(this, fromScene);
+  };
+
   const hitPadding = 5;
   graphic.setInteractive({
     hitArea: new Phaser.Geom.Circle(radius, radius, radius + hitPadding),

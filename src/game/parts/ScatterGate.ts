@@ -16,7 +16,7 @@ export function createScatterGate(
 
   // 1. Create MatterJS compound body
   // Left post bumper (collidable, static)
-  const leftBumper = scene.matter.add.trapezoid(x - w / 2 + bumperW/2, y, fixedH / 2, bumperW, 1.0, {
+  const leftBumper = scene.matter.add.trapezoid(x - w / 2 + bumperW/2, y, fixedH, bumperW, 0.35, {
     isStatic: true,
     friction: 0,
     restitution: 0.5,
@@ -25,7 +25,7 @@ export function createScatterGate(
   });
 
   // Right post bumper (collidable, static)
-  const rightBumper = scene.matter.add.trapezoid(x + w / 2 - bumperW/2, y, fixedH / 2, bumperW, 1.0, {
+  const rightBumper = scene.matter.add.trapezoid(x + w / 2 - bumperW/2, y, fixedH, bumperW, 0.35, {
     isStatic: true,
     friction: 0,
     restitution: 0.5,
