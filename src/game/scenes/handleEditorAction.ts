@@ -5,6 +5,51 @@ import { rebuildCurvedRamp } from "../parts/CurvedRamp";
 
 type Action = { action: keyof typeof actionHandlers; payload?: any; }
 
+function createPartFromData(
+  scene: MainScene,
+  type: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  baseAngle: number,
+  id?: string,
+  color?: number,
+  spinnerSpeed?: number,
+  boostAmount?: number,
+  x1?: number,
+  y1?: number,
+  x2?: number,
+  y2?: number,
+  cx?: number,
+  cy?: number,
+  segments?: number
+) {
+  if (type === "ramp") {
+    return scene.createRamp(x, y, w, h, baseAngle, id, color);
+  } else if (type === "curved_ramp") {
+    const absX1 = x + (x1 !== undefined ? x1 : -w / 2);
+    const absY1 = y + (y1 !== undefined ? y1 : 0);
+    const absCx = x + (cx !== undefined ? cx : 0);
+    const absCy = y + (cy !== undefined ? cy : -50);
+    const absX2 = x + (x2 !== undefined ? x2 : w / 2);
+    const absY2 = y + (y2 !== undefined ? y2 : 0);
+    return scene.createCurvedRamp(absX1, absY1, absCx, absCy, absX2, absY2, h, baseAngle, id, color, segments);
+  } else if (type === "pin") {
+    return scene.createPin(x, y, w, h, baseAngle, id, color);
+  } else if (type === "spinner") {
+    return scene.createSpinner(x, y, w, h, baseAngle, id, color, spinnerSpeed);
+  } else if (type === "finish_zone") {
+    return scene.createFinishZone(x, y, w, h, baseAngle, id, color);
+  } else if (type === "marble") {
+    return scene.createMarble(x, y, w, h, baseAngle, id, color);
+  } else if (type === "scatter_gate") {
+    return scene.createScatterGate(x, y, w, h, baseAngle, id, color);
+  } else if (type === "boost_gate") {
+    return scene.createBoostGate(x, y, w, h, baseAngle, id, color, boostAmount);
+  }
+}
+
 const actionHandlers = {
   ["toggle-mode"](scene: MainScene) { scene.setMode(scene.mode === "play" ? "edit" : "play"); },
   ["toggle-debug-rendering"](scene: MainScene) {
@@ -160,7 +205,8 @@ const actionHandlers = {
         p.graphic.destroy();
         scene.parts = scene.parts.filter((o) => o !== p);
 
-        const newPart = scene.createPart(
+        const newPart = createPartFromData(
+          scene,
           type,
           nx,
           ny,
@@ -216,7 +262,8 @@ const actionHandlers = {
             p.graphic.destroy();
             scene.parts = scene.parts.filter((o) => o !== p);
 
-            const newPart = scene.createPart(
+            const newPart = createPartFromData(
+              scene,
               type,
               px,
               py,
@@ -346,7 +393,8 @@ const actionHandlers = {
       const offset = scene.pasteCount * 15;
       const pasted: Part[] = [];
       scene.clipboard.forEach((p) => {
-        const newPart = scene.createPart(
+        const newPart = createPartFromData(
+          scene,
           p.type,
           p.x + offset,
           p.y + offset,
@@ -378,7 +426,8 @@ const actionHandlers = {
     if (scene.selectedParts.length > 0) {
       const duped: Part[] = [];
       scene.selectedParts.forEach((p) => {
-        const newPart = scene.createPart(
+        const newPart = createPartFromData(
+          scene,
           p.type,
           p.graphic.x + 20,
           p.graphic.y + 20,

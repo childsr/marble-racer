@@ -18,21 +18,21 @@ export function loadDefaultTrack(scene: MainScene) {
     for (let col = 0; col < cols; col++) {
       const x = startX + col * pinGapX;
       const y = startY + row * pinGapY;
-      scene.createPart("pin", x, y, 10, 10, 0);
+      scene.createPin(x, y, 10, 10, 0);
     }
   }
 
   scene.createRampBetween(1600, 950, 700, 980, 15);
-  scene.createPart("spinner", 850, 820, 350, 25, 0);
+  scene.createSpinner(850, 820, 350, 25, 0);
 
   // Add default Finish Zone at the bottom
-  scene.createPart("finish_zone", 450, 1040, 600, 60, 0);
+  scene.createFinishZone(450, 1040, 600, 60, 0);
 
   // Add default starting marbles at the top left of the course
   for (let i = 0; i < 8; i++) {
     const x = 100 + (i % 4) * 35;
     const y = 100 - Math.floor(i / 4) * 35;
     const color = scene.marbleColors[i % scene.marbleColors.length];
-    scene.createPart("marble", x, y, 14, 14, 0, undefined, color);
+    scene.createMarble(x, y, 14, 14, 0, undefined, color);
   }
 }

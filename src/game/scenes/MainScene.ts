@@ -703,21 +703,21 @@ export class MainScene extends Phaser.Scene {
 
     let part;
     if (type === "ramp") {
-      part = this.createPart("ramp", centerX, centerY, 300, 20, 0);
+      part = this.createRamp(centerX, centerY, 300, 20, 0);
     } else if (type === "curved_ramp") {
-      part = this.createPart("curved_ramp", centerX, centerY, 300, 20, 0);
+      part = this.createCurvedRamp(centerX - 150, centerY, centerX, centerY - 50, centerX + 150, centerY, 20, 0);
     } else if (type === "pin") {
-      part = this.createPart("pin", centerX, centerY, 14, 14, 0);
+      part = this.createPin(centerX, centerY, 14, 14, 0);
     } else if (type === "spinner") {
-      part = this.createPart("spinner", centerX, centerY, 300, 25, 0);
+      part = this.createSpinner(centerX, centerY, 300, 25, 0);
     } else if (type === "finish_zone") {
-      part = this.createPart("finish_zone", centerX, centerY, 150, 80, 0);
+      part = this.createFinishZone(centerX, centerY, 150, 80, 0);
     } else if (type === "marble") {
-      part = this.createPart("marble", centerX, centerY, 14, 14, 0);
+      part = this.createMarble(centerX, centerY, 14, 14, 0);
     } else if (type === "scatter_gate") {
-      part = this.createPart("scatter_gate", centerX, centerY, 80, 20, 0);
+      part = this.createScatterGate(centerX, centerY, 80, 20, 0);
     } else if (type === "boost_gate") {
-      part = this.createPart("boost_gate", centerX, centerY, 80, 20, 0);
+      part = this.createBoostGate(centerX, centerY, 80, 20, 0);
     }
 
     if (part) this.selectParts([part]);
@@ -783,48 +783,7 @@ export class MainScene extends Phaser.Scene {
     this.particles.emitParticleAt(marble.position.x, marble.position.y, 8);
   }
 
-  createPart(
-    type: Part["type"],
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    angle: number,
-    id?: string,
-    color?: number,
-    spinnerSpeed?: number,
-    boostAmount?: number,
-    x1?: number,
-    y1?: number,
-    x2?: number,
-    y2?: number,
-    cx?: number,
-    cy?: number,
-    segments?: number,
-  ) {
-    const partId = id || Math.random().toString();
-    let part: Part;
-
-    if (type === "ramp") {
-      part = createRamp(this, x, y, w, h, angle, partId, color);
-    } else if (type === "curved_ramp") {
-      part = createCurvedRamp(this, x, y, w, h, angle, partId, color, x1, y1, x2, y2, cx, cy, segments);
-    } else if (type === "pin") {
-      part = createPin(this, x, y, w, h, angle, partId, color);
-    } else if (type === "spinner") {
-      part = createSpinner(this, x, y, w, h, angle, partId, color, spinnerSpeed);
-    } else if (type === "finish_zone") {
-      part = createFinishZone(this, x, y, w, h, angle, partId, color);
-    } else if (type === "marble") {
-      part = createMarble(this, x, y, w, h, angle, partId, color);
-    } else if (type === "scatter_gate") {
-      part = createScatterGate(this, x, y, w, h, angle, partId, color);
-    } else if (type === "boost_gate") {
-      part = createBoostGate(this, x, y, w, h, angle, partId, color, boostAmount);
-    } else {
-      throw new Error(`Unknown part type: ${type}`);
-    }
-
+  registerPart(part: Part) {
     part.graphic.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (this.mode !== "edit") return;
       const add =
@@ -845,6 +804,54 @@ export class MainScene extends Phaser.Scene {
     this.parts.push(part);
     this.applyPartRenderingMode(part);
     return part;
+  }
+
+  createRamp(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number) {
+    const partId = id || Math.random().toString();
+    const part = createRamp(this, x, y, w, h, angle, partId, color);
+    return this.registerPart(part);
+  }
+
+  createCurvedRamp(x1: number, y1: number, cx: number, cy: number, x2: number, y2: number, thickness: number, angle: number = 0, id?: string, color?: number, segments?: number) {
+    const partId = id || Math.random().toString();
+    const part = createCurvedRamp(this, x1, y1, cx, cy, x2, y2, thickness, angle, partId, color, segments);
+    return this.registerPart(part);
+  }
+
+  createPin(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number) {
+    const partId = id || Math.random().toString();
+    const part = createPin(this, x, y, w, h, angle, partId, color);
+    return this.registerPart(part);
+  }
+
+  createSpinner(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number, spinnerSpeed?: number) {
+    const partId = id || Math.random().toString();
+    const part = createSpinner(this, x, y, w, h, angle, partId, color, spinnerSpeed);
+    return this.registerPart(part);
+  }
+
+  createFinishZone(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number) {
+    const partId = id || Math.random().toString();
+    const part = createFinishZone(this, x, y, w, h, angle, partId, color);
+    return this.registerPart(part);
+  }
+
+  createMarble(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number) {
+    const partId = id || Math.random().toString();
+    const part = createMarble(this, x, y, w, h, angle, partId, color);
+    return this.registerPart(part);
+  }
+
+  createScatterGate(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number) {
+    const partId = id || Math.random().toString();
+    const part = createScatterGate(this, x, y, w, h, angle, partId, color);
+    return this.registerPart(part);
+  }
+
+  createBoostGate(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number, boostAmount?: number) {
+    const partId = id || Math.random().toString();
+    const part = createBoostGate(this, x, y, w, h, angle, partId, color, boostAmount);
+    return this.registerPart(part);
   }
 
   updateSelectionBox() {
@@ -1265,7 +1272,7 @@ export class MainScene extends Phaser.Scene {
     const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2;
-    return this.createPart("ramp", midX, midY, distance, thickness, angle);
+    return this.createRamp(midX, midY, distance, thickness, angle);
   }
 
   applyState(state: SerializedPart[]) {
@@ -1277,25 +1284,29 @@ export class MainScene extends Phaser.Scene {
     this.selectParts([]);
 
     state.forEach((s) => {
-      this.createPart(
-        s.type,
-        s.x,
-        s.y,
-        s.w,
-        s.h,
-        s.baseAngle,
-        s.id,
-        s.color,
-        s.spinnerSpeed,
-        s.boostAmount,
-        s.x1,
-        s.y1,
-        s.x2,
-        s.y2,
-        s.cx,
-        s.cy,
-        s.segments,
-      );
+      if (s.type === "ramp") {
+        this.createRamp(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
+      } else if (s.type === "curved_ramp") {
+        const absX1 = s.x + (s.x1 !== undefined ? s.x1 : -s.w / 2);
+        const absY1 = s.y + (s.y1 !== undefined ? s.y1 : 0);
+        const absCx = s.x + (s.cx !== undefined ? s.cx : 0);
+        const absCy = s.y + (s.cy !== undefined ? s.cy : -50);
+        const absX2 = s.x + (s.x2 !== undefined ? s.x2 : s.w / 2);
+        const absY2 = s.y + (s.y2 !== undefined ? s.y2 : 0);
+        this.createCurvedRamp(absX1, absY1, absCx, absCy, absX2, absY2, s.h, s.baseAngle, s.id, s.color, s.segments);
+      } else if (s.type === "pin") {
+        this.createPin(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
+      } else if (s.type === "spinner") {
+        this.createSpinner(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color, s.spinnerSpeed);
+      } else if (s.type === "finish_zone") {
+        this.createFinishZone(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
+      } else if (s.type === "marble") {
+        this.createMarble(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
+      } else if (s.type === "scatter_gate") {
+        this.createScatterGate(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
+      } else if (s.type === "boost_gate") {
+        this.createBoostGate(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color, s.boostAmount);
+      }
     });
     this.updateSelectionBox();
   }

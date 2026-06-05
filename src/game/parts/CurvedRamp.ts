@@ -77,29 +77,32 @@ export function getBoundingBox(points: { x: number; y: number }[]) {
 
 export function createCurvedRamp(
   scene: Phaser.Scene,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
+  x1: number,
+  y1: number,
+  cx: number,
+  cy: number,
+  x2: number,
+  y2: number,
+  thickness: number,
   angle: number,
   id: string,
   color: number = 0x9b5de5, // standard purple
-  x1?: number,
-  y1?: number,
-  x2?: number,
-  y2?: number,
-  cx?: number,
-  cy?: number,
-  segments?: number
+  segments: number = 16
 ): Part {
-  const defaultX1 = x1 !== undefined ? x1 : -w / 2;
-  const defaultY1 = y1 !== undefined ? y1 : 0;
-  const defaultX2 = x2 !== undefined ? x2 : w / 2;
-  const defaultY2 = y2 !== undefined ? y2 : 0;
-  const defaultCx = cx !== undefined ? cx : 0;
-  const defaultCy = cy !== undefined ? cy : -50;
+  const x = (x1 + x2) / 2;
+  const y = (y1 + y2) / 2;
+
+  const localX1 = x1 - x;
+  const localY1 = y1 - y;
+  const localX2 = x2 - x;
+  const localY2 = y2 - y;
+  const localCx = cx - x;
+  const localCy = cy - y;
 
   const container = scene.add.container(x, y);
+
+  // Determine an approximate width just for UI selection scaling if needed
+  const w = Math.max(Math.abs(localX1), Math.abs(localX2), Math.abs(localCx)) * 2;
 
   const part: Part = {
     id,
@@ -107,16 +110,16 @@ export function createCurvedRamp(
     graphic: container,
     body: null as any, // assigned in rebuild
     w,
-    h,
+    h: thickness,
     baseAngle: angle,
     color,
-    x1: defaultX1,
-    y1: defaultY1,
-    x2: defaultX2,
-    y2: defaultY2,
-    cx: defaultCx,
-    cy: defaultCy,
-    segments: segments !== undefined ? segments : 16,
+    x1: localX1,
+    y1: localY1,
+    x2: localX2,
+    y2: localY2,
+    cx: localCx,
+    cy: localCy,
+    segments: segments,
   };
 
   rebuildCurvedRamp(scene, part);
