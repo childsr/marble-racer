@@ -9,6 +9,9 @@ import { createScatterGate } from "../parts/ScatterGate";
 import { createBoostGate } from "../parts/BoostGate";
 import { createCurvedRamp, rebuildCurvedRamp, getBoundingBox } from "../parts/CurvedRamp";
 import { handleEditorAction } from "./handleEditorAction"
+import { loadDefaultTrack } from "../tracks/default";
+import { loadHalfpipeTrack } from "../tracks/halfpipe";
+import { loadPlinkoTrack } from "../tracks/plinko";
 
 const MARBLE_RESTITUTION = 0.7;
 
@@ -1355,41 +1358,15 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  setupCourse() {
-    // Basic landscape course to jump into editing
-    this.createRampBetween(50, 150, 800, 250, 15);
-    this.createRampBetween(850, 300, 1750, 400, 15);
-    this.createRampBetween(1850, 450, 1600, 500, 15);
+  setupCourse(trackName: string = "default") {
+    this.applyState([]);
 
-    const pinRows = 6;
-    const pinGapX = 80;
-    const pinGapY = 70;
-    const startY = 550;
-
-    for (let row = 0; row < pinRows; row++) {
-      const cols = row % 2 === 0 ? 6 : 5;
-      const rowWidth = (cols - 1) * pinGapX;
-      const startX = 1450 - rowWidth / 2;
-
-      for (let col = 0; col < cols; col++) {
-        const x = startX + col * pinGapX;
-        const y = startY + row * pinGapY;
-        this.createPart("pin", x, y, 10, 10, 0);
-      }
-    }
-
-    this.createRampBetween(1600, 950, 700, 980, 15);
-    this.createPart("spinner", 850, 820, 350, 25, 0);
-
-    // Add default Finish Zone at the bottom
-    this.createPart("finish_zone", 450, 1040, 600, 60, 0);
-
-    // Add default starting marbles at the top left of the course
-    for (let i = 0; i < 8; i++) {
-      const x = 100 + (i % 4) * 35;
-      const y = 100 - Math.floor(i / 4) * 35;
-      const color = this.marbleColors[i % this.marbleColors.length];
-      this.createPart("marble", x, y, 14, 14, 0, undefined, color);
+    if (trackName === "plinko") {
+      loadPlinkoTrack(this);
+    } else if (trackName === "halfpipe") {
+      loadHalfpipeTrack(this);
+    } else {
+      loadDefaultTrack(this);
     }
 
     this.saveState();

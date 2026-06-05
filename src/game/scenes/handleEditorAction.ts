@@ -251,6 +251,18 @@ const actionHandlers = {
       }
     }
   },
+  ["load-built-in-track"](scene: MainScene, payload: any) {
+    scene.setupCourse(payload);
+  },
+  ["load-state"](scene: MainScene, payload: any) {
+    if (Array.isArray(payload)) {
+      scene.applyState(payload);
+      scene.history = [payload];
+      scene.historyIndex = 0;
+      scene.saveToLocalStorage(payload);
+      scene.notifyState();
+    }
+  },
   ["save-state"](scene: MainScene) { scene.saveState(); },
   undo(scene: MainScene) {
     scene.undo();

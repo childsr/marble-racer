@@ -31,7 +31,12 @@ import {
   Clipboard,
   Layers,
   Eye,
+  Map,
+  Download,
+  Save,
+  FolderOpen
 } from "lucide-react";
+
 import { motion } from "motion/react";
 
 const getPartTypeName = (type: string | null): string => {
@@ -92,6 +97,42 @@ export default function App() {
   const speedButtonRef = useRef<HTMLButtonElement>(null);
   const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
   const [simSpeed, setSimSpeed] = useState<number>(1.0);
+
+  const [userTracks, setUserTracks] = useState<{ id: string, name: string, data: any }[]>([]);
+  const [isTrackMenuOpen, setIsTrackMenuOpen] = useState(false);
+  const trackMenuRef = useRef<HTMLDivElement>(null);
+  const trackButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("marble_racer_user_tracks");
+    if (saved) {
+      try {
+        setUserTracks(JSON.parse(saved));
+      } catch (e) { }
+    }
+  }, []);
+
+  const saveCurrentTrack = () => {
+    const currentStr = localStorage.getItem("physics_sandbox_level_state");
+    if (currentStr) {
+      const parsed = JSON.parse(currentStr);
+      const newTrack = {
+        id: "track_" + Date.now(),
+        name: "Custom Track " + (userTracks.length + 1),
+        data: parsed,
+      };
+      const updated = [...userTracks, newTrack];
+      setUserTracks(updated);
+      localStorage.setItem("marble_racer_user_tracks", JSON.stringify(updated));
+    }
+  };
+
+  const deleteTrack = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = userTracks.filter((t) => t.id !== id);
+    setUserTracks(updated);
+    localStorage.setItem("marble_racer_user_tracks", JSON.stringify(updated));
+  };
 
   const setupDragGhost = (type: string, e: React.DragEvent) => {
     const container = document.getElementById("phaser-game-container");
@@ -249,13 +290,23 @@ export default function App() {
           setIsSpeedMenuOpen(false);
         }
       }
+      if (isTrackMenuOpen) {
+        if (
+          trackMenuRef.current &&
+          !trackMenuRef.current.contains(e.target as Node) &&
+          trackButtonRef.current &&
+          !trackButtonRef.current.contains(e.target as Node)
+        ) {
+          setIsTrackMenuOpen(false);
+        }
+      }
     };
 
     document.addEventListener("pointerdown", handleOutsideClick);
     return () => {
       document.removeEventListener("pointerdown", handleOutsideClick);
     };
-  }, [isAddMenuOpen, isSpeedMenuOpen]);
+  }, [isAddMenuOpen, isSpeedMenuOpen, isTrackMenuOpen]);
 
   useEffect(() => {
     const handleStateChange = (e: any) => {
@@ -672,6 +723,15 @@ export default function App() {
           {mode === "edit" && (
             <div className="flex gap-2 items-center overflow-x-auto">
               <button
+                ref={trackButtonRef}
+                onClick={() => setIsTrackMenuOpen(!isTrackMenuOpen)}
+                className={`flex items-center gap-2 px-4 py-2 ${isTrackMenuOpen ? "bg-[#25282e]" : "bg-white/10 hover:bg-white/20"} rounded-full font-medium transition-all shadow-lg shrink-0 cursor-pointer`}
+              >
+                <FolderOpen size={18} className="text-amber-400" />
+                <span>Tracks</span>
+              </button>
+
+              <button
                 onClick={() => sendAction("undo")}
                 disabled={!canUndo}
                 className={`flex items-center gap-2 px-3 py-2 ${canUndo ? "bg-white/10 hover:bg-white/20" : "bg-white/5 opacity-50 cursor-not-allowed"} rounded-full font-medium transition-all shadow-lg shrink-0`}
@@ -1054,6 +1114,126 @@ export default function App() {
                   <span className="text-[10px] text-purple-500/80 mt-1 leading-none">Accelerates marbles on pass-through</span>
                 </div>
               </button>
+            </div>
+          </motion.div>
+        )}
+
+        {mode === "edit" && isTrackMenuOpen && (
+          <motion.div
+            ref={trackMenuRef}
+            key="tracks-window"
+            drag
+            dragConstraints={dragConstraintsRef}
+            dragElastic={0}
+            dragMomentum={false}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="absolute top-4 left-32 z-30 flex flex-col p-4 bg-[#1a1b1e]/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/10 w-[320px] max-h-[80vh] overflow-hidden"
+          >
+            <div className="flex items-center justify-between cursor-move handle mb-4 pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2 text-white/50">
+                <GripHorizontal size={16} />
+                <span className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+                  Tracks
+                </span>
+              </div>
+              <button
+                onClick={() => setIsTrackMenuOpen(false)}
+                className="text-white/40 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+              <div>
+                <h3 className="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-2 px-1">
+                  Built-in
+                </h3>
+                <div className="space-y-1.5">
+                  {[
+                    { id: "default", name: "Basic Track", icon: <Map size={14} className="text-gray-400" /> },
+                    { id: "plinko", name: "Plinko Board", icon: <Layers size={14} className="text-gray-400" /> },
+                    { id: "halfpipe", name: "Halfpipe", icon: <RefreshCw size={14} className="text-gray-400" /> },
+                  ].map((track) => (
+                    <button
+                      key={track.id}
+                      onClick={() => {
+                        sendAction("load-built-in-track", track.id);
+                        setIsTrackMenuOpen(false);
+                      }}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 bg-white/5 hover:bg-white/10 rounded-lg transition-all text-sm font-medium"
+                    >
+                      <div className="flex items-center gap-3">
+                        {track.icon}
+                        <span>{track.name}</span>
+                      </div>
+                      <Download size={14} className="text-sky-400" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <h3 className="text-[11px] font-bold text-white/40 uppercase tracking-widest">
+                    Your Tracks
+                  </h3>
+                  <button
+                    onClick={saveCurrentTrack}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors"
+                  >
+                    <Save size={12} />
+                    Save Current
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {userTracks.length === 0 ? (
+                    <div className="text-center py-4 text-xs text-white/30 italic bg-black/20 rounded-lg border border-white/5">
+                      No saved tracks yet
+                    </div>
+                  ) : (
+                    userTracks.map((track) => (
+                      <div
+                        key={track.id}
+                        className="group w-full flex items-center justify-between gap-3 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all"
+                      >
+                        <button
+                          className="flex-1 flex items-center gap-3 text-sm font-medium cursor-pointer text-left"
+                          onClick={() => {
+                            sendAction("load-state", track.data);
+                            setIsTrackMenuOpen(false);
+                          }}
+                        >
+                          <Map size={14} className="text-amber-400" />
+                          <span className="truncate">{track.name}</span>
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              sendAction("load-state", track.data);
+                              setIsTrackMenuOpen(false);
+                            }}
+                            className="p-1.5 rounded-md text-sky-400 hover:bg-sky-400/20 transition-colors"
+                            title="Load track"
+                          >
+                            <Download size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => deleteTrack(track.id, e)}
+                            className="p-1.5 rounded-md text-red-400 hover:bg-red-400/20 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Delete track"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
