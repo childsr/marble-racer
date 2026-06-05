@@ -190,6 +190,9 @@ const actionHandlers = {
           } else if (p.graphic && typeof p.graphic.fillColor !== "undefined") {
             p.graphic.fillColor = payload.color;
           }
+          if (p.type === "marble" && (p.graphic as any).glow) {
+            (p.graphic as any).glow.setTint(payload.color);
+          }
           newSelection.push(p);
         } else if (payload.w !== undefined || payload.h !== undefined) {
           const newW = payload.w !== undefined ? payload.w : p.w;

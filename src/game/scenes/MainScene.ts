@@ -469,12 +469,6 @@ export class MainScene extends Phaser.Scene {
   setupInput() {
     this.input.addPointer(2);
 
-    let startPinchDistance = 0;
-    let isPinching = false;
-    let pinchCenter = { x: 0, y: 0 };
-    let startPinchAngle = 0;
-    let lastPinchAngle = 0;
-
     let dragStartMap = new Map<Part, { x: number; y: number }>();
     let isDraggingSelection = false;
     let hasDraggedSelection = false;
@@ -568,24 +562,6 @@ export class MainScene extends Phaser.Scene {
           document.activeElement.blur();
         }
 
-        const p1 = this.input.pointer1;
-        const p2 = this.input.pointer2;
-        if (p1.active && p2.active && p1.isDown && p2.isDown) {
-          isPinching = true;
-          startPinchDistance = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
-          pinchCenter = {
-            x: (p1.x + p2.x) / 2,
-            y: (p1.y + p2.y) / 2,
-          };
-          this.isBoxSelecting = false;
-          this.boxSelectionVisual.setVisible(false);
-          startPinchAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-          lastPinchAngle = startPinchAngle;
-          return;
-        }
-
-        if (isPinching) return;
-
         if (this.mode === "edit") {
           if (currentlyOver.length === 0 || currentlyOver[0] === undefined) {
             const shiftOrCtrl =
@@ -607,79 +583,6 @@ export class MainScene extends Phaser.Scene {
     );
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-      const p1 = this.input.pointer1;
-      const p2 = this.input.pointer2;
-      if (this.mode === "edit" && p1.active && p2.active && p1.isDown && p2.isDown) {
-        if (!isPinching) {
-          isPinching = true;
-          startPinchDistance = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
-          pinchCenter = {
-            x: (p1.x + p2.x) / 2,
-            y: (p1.y + p2.y) / 2,
-          };
-          this.isBoxSelecting = false;
-          this.boxSelectionVisual.setVisible(false);
-          startPinchAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-          lastPinchAngle = startPinchAngle;
-        }
-
-        // Apply two-finger rotation to selected parts
-        if (this.selectedParts.length > 0) {
-          const currentAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-          let angleDiff = currentAngle - lastPinchAngle;
-          // Normalize to [-PI, PI] to avoid jumps around the wrap-around point
-          angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-
-          if (Math.abs(angleDiff) > 0.001) {
-            let cx = 0,
-              cy = 0;
-            this.selectedParts.forEach((p) => {
-              cx += p.graphic.x;
-              cy += p.graphic.y;
-            });
-            cx /= this.selectedParts.length;
-            cy /= this.selectedParts.length;
-
-            this.selectedParts.forEach((p) => {
-              const Point = Phaser.Math.RotateAround(
-                { x: p.graphic.x, y: p.graphic.y },
-                cx,
-                cy,
-                angleDiff,
-              );
-              p.graphic.setPosition(Point.x, Point.y);
-
-              if (p.type === "curved_ramp") {
-                p.graphic.setRotation(p.graphic.rotation + angleDiff);
-                p.baseAngle = p.graphic.rotation;
-                rebuildCurvedRamp(this, p);
-              } else {
-                this.matter.body.setPosition(p.body, Point);
-
-                if (p.type !== "pin" && p.type !== "marble") {
-                  p.baseAngle += angleDiff;
-                  this.matter.body.setAngle(p.body, p.baseAngle);
-                  p.graphic.setRotation(p.baseAngle);
-                } else {
-                  p.baseAngle = 0;
-                  this.matter.body.setAngle(p.body, 0);
-                  p.graphic.setRotation(0);
-                }
-              }
-            });
-
-            this.updateSelectionBox();
-            this.saveState();
-            this.notifyState();
-          }
-          lastPinchAngle = currentAngle;
-        }
-
-        return;
-      }
-
-      if (isPinching) return;
-
       if (this.mode === "edit" && this.isBoxSelecting) {
         const w = pointer.worldX - this.boxSelectStart.x;
         const h = pointer.worldY - this.boxSelectStart.y;
@@ -692,13 +595,6 @@ export class MainScene extends Phaser.Scene {
     });
 
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-      const p1 = this.input.pointer1;
-      const p2 = this.input.pointer2;
-      if (!p1.isDown || !p2.isDown) {
-        isPinching = false;
-      }
-      if (isPinching) return;
-
       if (this.mode === "edit" && this.isBoxSelecting) {
         this.isBoxSelecting = false;
         this.boxSelectionVisual.setVisible(false);
