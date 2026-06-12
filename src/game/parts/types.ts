@@ -9,6 +9,7 @@ export type PartType =
   | "marble"
   | "scatter_gate"
   | "boost_gate"
+  | "bounce_ramp"
 //
 export interface Part {
   id: string;

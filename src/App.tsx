@@ -56,6 +56,8 @@ const getPartTypeName = (type: string | null): string => {
       return "Scatter Gate";
     case "boost_gate":
       return "Boost Gate";
+    case "bounce_ramp":
+      return "Bounce Ramp";
     default:
       return type.charAt(0).toUpperCase() + type.slice(1);
   }
@@ -235,6 +237,15 @@ export default function App() {
           <rect x="${10 * S}" y="${21 * S}" width="${W - 20 * S}" height="${8 * S}" fill="#d946ef" fill-opacity="0.5" />
           <!-- Inner shining field -->
           <rect x="${10 * S}" y="${24 * S}" width="${W - 20 * S}" height="${2 * S}" fill="#ffffff" fill-opacity="0.9" />
+        </svg>
+      `;
+    } else if (type === "bounce_ramp") {
+      W = 120 * S;
+      H = 20 * S;
+      html = `
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow: visible; opacity: 0.65;">
+          <rect x="0" y="0" width="${W}" height="${H}" rx="${2 * S}" fill="#ffa500" stroke="#ffffff" stroke-width="1.5" />
+          <path d="M ${10 * S},${13 * S} L ${20 * S},${7 * S} L ${30 * S},${13 * S} M ${45 * S},${13 * S} L ${55 * S},${7 * S} L ${65 * S},${13 * S} M ${80 * S},${13 * S} L ${90 * S},${7 * S} L ${100 * S},${13 * S}" stroke="#ffffff" stroke-width="1.5" fill="none" opacity="0.9" />
         </svg>
       `;
     }
@@ -869,7 +880,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => {
                   sendAction("add-part", "ramp");
@@ -880,7 +891,7 @@ export default function App() {
                   e.dataTransfer.setData("text/plain", "ramp");
                   setupDragGhost("ramp", e);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
                   <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
@@ -897,9 +908,8 @@ export default function App() {
                     </defs>
                   </svg>
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-white leading-none">Ramp</span>
-                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Guide and slide marbles</span>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-xs font-semibold text-white leading-tight">Ramp</span>
                 </div>
               </button>
               <button
@@ -912,7 +922,7 @@ export default function App() {
                   e.dataTransfer.setData("text/plain", "curved_ramp");
                   setupDragGhost("curved_ramp", e);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
                   <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
@@ -927,9 +937,30 @@ export default function App() {
                     </defs>
                   </svg>
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-white leading-none">Curved Ramp</span>
-                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Custom Bezier wave slide</span>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-xs font-semibold text-white leading-tight">Curved Ramp</span>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "bounce_ramp");
+                  setIsAddMenuOpen(false);
+                }}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "bounce_ramp");
+                  setupDragGhost("bounce_ramp", e);
+                }}
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/10 hover:border-orange-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <rect x="5" y="15" width="30" height="10" rx="2" fill="#ffa500" stroke="#fff" strokeWidth="0.75" />
+                    <path d="M10,21 L13,18 L16,21 M18,21 L21,18 L24,21 M26,21 L29,18 L32,21" stroke="#ffffff" strokeWidth="1" fill="none" />
+                  </svg>
+                </div>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-xs font-semibold text-orange-400 leading-tight">Bounce Ramp</span>
                 </div>
               </button>
               <button
@@ -942,7 +973,7 @@ export default function App() {
                   e.dataTransfer.setData("text/plain", "pin");
                   setupDragGhost("pin", e);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
                   <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
@@ -959,40 +990,8 @@ export default function App() {
                     </defs>
                   </svg>
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-white leading-none">Pin</span>
-                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Peg for bouncy interactions</span>
-                </div>
-              </button>
-              <button
-                onClick={() => {
-                  sendAction("add-part", "marble");
-                  setIsAddMenuOpen(false);
-                }}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", "marble");
-                  setupDragGhost("marble", e);
-                }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
-              >
-                <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
-                    <circle cx="20" cy="20" r="10" fill="#ff4444" opacity="0.15" id="marble_svg_shadow" />
-                    <circle cx="20" cy="20" r="8" fill="url(#marbleSphereGrad)" stroke="#ff4444" strokeWidth="0.5" id="marble_svg_body" />
-                    <circle cx="17.5" cy="17.5" r="1.5" fill="#fff" opacity="0.8" id="marble_svg_glare" />
-                    <defs>
-                      <radialGradient id="marbleSphereGrad" cx="35%" cy="35%" r="65%">
-                        <stop offset="0%" stopColor="#ffdcd1" />
-                        <stop offset="40%" stopColor="#ff4444" />
-                        <stop offset="100%" stopColor="#991b1b" />
-                      </radialGradient>
-                    </defs>
-                  </svg>
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-white leading-none">Marble</span>
-                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Starting physics marbles</span>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-xs font-semibold text-white leading-tight">Pin</span>
                 </div>
               </button>
               <button
@@ -1005,7 +1004,7 @@ export default function App() {
                   e.dataTransfer.setData("text/plain", "spinner");
                   setupDragGhost("spinner", e);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0 animate-spin [animation-duration:3s]">
                   <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
@@ -1022,9 +1021,63 @@ export default function App() {
                     </defs>
                   </svg>
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-white leading-none">Spinner</span>
-                  <span className="text-[10px] text-gray-400 mt-1 leading-none">Active rotating obstacle</span>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-xs font-semibold text-white leading-tight">Spinner</span>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "scatter_gate");
+                  setIsAddMenuOpen(false);
+                }}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "scatter_gate");
+                  setupDragGhost("scatter_gate", e);
+                }}
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/10 hover:border-yellow-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="scatter_svg_left_post" />
+                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" id="scatter_svg_left_bracket" />
+                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="scatter_svg_right_post" />
+                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" id="scatter_svg_right_bracket" />
+                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#fff59d" opacity="0.4" id="scatter_svg_field" />
+                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" id="scatter_svg_laser_glare" />
+                    <line x1="12" y1="20" x2="28" y2="20" stroke="#fdeb1d" strokeWidth="1" id="scatter_svg_laser" />
+                  </svg>
+                </div>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-xs font-semibold text-yellow-500 leading-tight">Scatter</span>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "boost_gate");
+                  setIsAddMenuOpen(false);
+                }}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "boost_gate");
+                  setupDragGhost("boost_gate", e);
+                }}
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/10 hover:border-purple-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="boost_svg_left_post" />
+                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" id="boost_svg_left_bracket" />
+                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="boost_svg_right_post" />
+                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" id="boost_svg_right_bracket" />
+                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#e9d5ff" opacity="0.4" id="boost_svg_field" />
+                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" id="boost_svg_laser_glare" />
+                    <path d="M16,16 L20,20 L24,16" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" id="boost_svg_arrow1" />
+                    <path d="M16,21 L20,25 L24,21" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" id="boost_svg_arrow2" />
+                  </svg>
+                </div>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-xs font-semibold text-purple-400 leading-tight">Boost</span>
                 </div>
               </button>
               <button
@@ -1037,7 +1090,7 @@ export default function App() {
                   e.dataTransfer.setData("text/plain", "finish_zone");
                   setupDragGhost("finish_zone", e);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
                   <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
@@ -1052,66 +1105,38 @@ export default function App() {
                     </g>
                   </svg>
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-emerald-400 leading-none">Finish Zone</span>
-                  <span className="text-[10px] text-emerald-500/80 mt-1 leading-none">Marble target accumulator</span>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-xs font-semibold text-emerald-400 leading-tight">Goal</span>
                 </div>
               </button>
               <button
                 onClick={() => {
-                  sendAction("add-part", "scatter_gate");
+                  sendAction("add-part", "marble");
                   setIsAddMenuOpen(false);
                 }}
                 draggable
                 onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", "scatter_gate");
-                  setupDragGhost("scatter_gate", e);
+                  e.dataTransfer.setData("text/plain", "marble");
+                  setupDragGhost("marble", e);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/10 hover:border-yellow-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
                   <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
-                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="scatter_svg_left_post" />
-                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" id="scatter_svg_left_bracket" />
-                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="scatter_svg_right_post" />
-                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" id="scatter_svg_right_bracket" />
-                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#fff59d" opacity="0.4" id="scatter_svg_field" />
-                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" id="scatter_svg_laser_glare" />
-                    <line x1="12" y1="20" x2="28" y2="20" stroke="#fdeb1d" strokeWidth="1" id="scatter_svg_laser" />
+                    <circle cx="20" cy="20" r="10" fill="#ff4444" opacity="0.15" id="marble_svg_shadow" />
+                    <circle cx="20" cy="20" r="8" fill="url(#marbleSphereGrad)" stroke="#ff4444" strokeWidth="0.5" id="marble_svg_body" />
+                    <circle cx="17.5" cy="17.5" r="1.5" fill="#fff" opacity="0.8" id="marble_svg_glare" />
+                    <defs>
+                      <radialGradient id="marbleSphereGrad" cx="35%" cy="35%" r="65%">
+                        <stop offset="0%" stopColor="#ffdcd1" />
+                        <stop offset="40%" stopColor="#ff4444" />
+                        <stop offset="100%" stopColor="#991b1b" />
+                      </radialGradient>
+                    </defs>
                   </svg>
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-yellow-500 leading-none">Scatter Gate</span>
-                  <span className="text-[10px] text-yellow-600/80 mt-1 leading-none">Force field deflecting marbles</span>
-                </div>
-              </button>
-              <button
-                onClick={() => {
-                  sendAction("add-part", "boost_gate");
-                  setIsAddMenuOpen(false);
-                }}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", "boost_gate");
-                  setupDragGhost("boost_gate", e);
-                }}
-                className="flex w-full items-center gap-3 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/10 hover:border-purple-500/30 rounded-lg transition-all cursor-pointer select-none active:opacity-75"
-              >
-                <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
-                    <rect x="6" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="boost_svg_left_post" />
-                    <polygon points="10,12 12,17 12,23 10,28" fill="#4f526b" id="boost_svg_left_bracket" />
-                    <rect x="30" y="10" width="4" height="20" rx="1" fill="#4f526b" stroke="#1f2130" strokeWidth="0.75" id="boost_svg_right_post" />
-                    <polygon points="30,12 28,17 28,23 30,28" fill="#4f526b" id="boost_svg_right_bracket" />
-                    <rect x="12" y="18" width="16" height="4" rx="1.5" fill="#e9d5ff" opacity="0.4" id="boost_svg_field" />
-                    <rect x="12" y="19.5" width="16" height="1" fill="#fff" opacity="0.95" id="boost_svg_laser_glare" />
-                    <path d="M16,16 L20,20 L24,16" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" id="boost_svg_arrow1" />
-                    <path d="M16,21 L20,25 L24,21" stroke="#d946ef" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" id="boost_svg_arrow2" />
-                  </svg>
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-purple-400 leading-none">Boost Gate</span>
-                  <span className="text-[10px] text-purple-500/80 mt-1 leading-none">Accelerates marbles on pass-through</span>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-xs font-semibold text-white leading-tight">Marble</span>
                 </div>
               </button>
             </div>
@@ -1314,7 +1339,7 @@ export default function App() {
                 />
               </div>
 
-              {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "scatter_gate" || selectedPartType === "boost_gate") && selectedPartW !== null && selectedPartH !== null && (
+              {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "scatter_gate" || selectedPartType === "boost_gate" || selectedPartType === "bounce_ramp") && selectedPartW !== null && selectedPartH !== null && (
                 <div className="border border-white/10 rounded-lg p-3 bg-white/5 flex flex-col gap-3 font-sans">
                   <div className="flex flex-col items-center">
                     <span className="text-[10px] font-bold text-white/40 tracking-wider uppercase">
@@ -1344,7 +1369,7 @@ export default function App() {
                     />
                   </div>
 
-                  {selectedPartType !== "ramp" && selectedPartType !== "scatter_gate" && selectedPartType !== "boost_gate" && (
+                  {selectedPartType !== "ramp" && selectedPartType !== "scatter_gate" && selectedPartType !== "boost_gate" && selectedPartType !== "bounce_ramp" && (
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-center text-xs">
                         <span className="font-medium text-white/80">Height</span>

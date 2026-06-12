@@ -8,6 +8,7 @@ import { createMarble } from "../parts/Marble";
 import { createScatterGate } from "../parts/ScatterGate";
 import { createBoostGate } from "../parts/BoostGate";
 import { createCurvedRamp, rebuildCurvedRamp, getBoundingBox } from "../parts/CurvedRamp";
+import { createBounceRamp } from "../parts/BounceRamp";
 import { handleEditorAction } from "./handleEditorAction"
 import { loadDefaultTrack } from "../tracks/default";
 import { loadHalfpipeTrack } from "../tracks/halfpipe";
@@ -88,6 +89,7 @@ export class MainScene extends Phaser.Scene {
   finishList: { color: number; place: number }[] = [];
   marblesToRemove: MatterJS.BodyType[] = [];
   finishedMarblesSet: Set<MatterJS.BodyType> = new Set();
+  previousMarbleVelocities = new Map<MatterJS.BodyType, { x: number; y: number }>();
   activeGlows: Phaser.GameObjects.Arc[] = [];
   particles: any;
   wallGraphics: Phaser.GameObjects.Rectangle[] = [];
@@ -187,6 +189,71 @@ export class MainScene extends Phaser.Scene {
         if (isPinMarble) {
           const marble = isBodyAMarble ? parentA : parentB;
           this.particles.emitParticleAt(marble.position.x, marble.position.y, 5);
+        }
+
+        // Custom high restitution behavior for Bounce Ramps (restitution = 1.25)
+        const isBounceRampA = (partA && partA.type === "bounce_ramp") || bodyA.label === "bounce_ramp" || parentA.label === "bounce_ramp";
+        const isBounceRampB = (partB && partB.type === "bounce_ramp") || bodyB.label === "bounce_ramp" || parentB.label === "bounce_ramp";
+        if ((isBounceRampA && isBodyBMarble) || (isBounceRampB && isBodyAMarble)) {
+          const marble = isBodyAMarble ? parentA : parentB;
+          const rampBody = isBodyAMarble ? parentB : parentA;
+
+          // Emit orange bouncy particles at collision point
+          this.particles.emitParticleAt(marble.position.x, marble.position.y, 8);
+
+          // Animate bounce ramp container with scale feedback
+          const bouncePart = isBodyAMarble ? partB : partA;
+          if (bouncePart && bouncePart.graphic) {
+            const container = bouncePart.graphic;
+            this.tweens.add({
+              targets: container,
+              scaleX: 1.15,
+              scaleY: 1.25,
+              duration: 80,
+              yoyo: true
+            });
+          }
+
+          // Get pre-collision velocity
+          const preV = this.previousMarbleVelocities.get(marble) || { x: marble.velocity.x, y: marble.velocity.y };
+
+          // Get unit normal of collision, fallback to positions if undefined or zero-vector
+          let normal = pair.collision && pair.collision.normal ? pair.collision.normal : null;
+          let unitNormal = normal ? { x: normal.x, y: normal.y } : null;
+
+          if (!unitNormal || (unitNormal.x === 0 && unitNormal.y === 0)) {
+            const dx = marble.position.x - rampBody.position.x;
+            const dy = marble.position.y - rampBody.position.y;
+            const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+            unitNormal = { x: dx / dist, y: dy / dist };
+          }
+
+          // Ensure normal points away from the ramp towards the marble
+          const toMarble = {
+            x: marble.position.x - rampBody.position.x,
+            y: marble.position.y - rampBody.position.y
+          };
+          const dotToMarble = toMarble.x * unitNormal.x + toMarble.y * unitNormal.y;
+          if (dotToMarble < 0) {
+            unitNormal.x = -unitNormal.x;
+            unitNormal.y = -unitNormal.y;
+          }
+
+          // Compute pre-collision velocity along normal
+          const vn = preV.x * unitNormal.x + preV.y * unitNormal.y;
+
+          // Reflect velocity along normal with 1.25 multiplier
+          const bounceFactor = 1.25;
+          if (vn < 0.1) {
+            const vnNew = -bounceFactor * Math.min(vn, -1.0); // Bumper action to guarantee a nice push
+            const vxNew = preV.x - vn * unitNormal.x + vnNew * unitNormal.x;
+            const vyNew = preV.y - vn * unitNormal.y + vnNew * unitNormal.y;
+
+            this.matter.body.setVelocity(marble, { x: vxNew, y: vyNew });
+          } else {
+            // scale up existing velocity slightly to give bouncy response
+            this.matter.body.setVelocity(marble, { x: marble.velocity.x * bounceFactor, y: marble.velocity.y * bounceFactor });
+          }
         }
 
         const isScatterGateA = bodyA.label === "scatter_gate_sensor";
@@ -363,6 +430,12 @@ export class MainScene extends Phaser.Scene {
 
   update() {
     if (this.mode === "play") {
+      // Record velocities before physics step to support custom elastic bounce properties
+      this.previousMarbleVelocities.clear();
+      this.marbles.forEach(marble => {
+        this.previousMarbleVelocities.set(marble, { x: marble.velocity.x, y: marble.velocity.y });
+      });
+
       this.parts.forEach((part) => {
         if (part.type === "spinner") {
           updateSpinner(this, part);
@@ -718,6 +791,8 @@ export class MainScene extends Phaser.Scene {
       part = this.createScatterGate(centerX, centerY, 80, 20, 0);
     } else if (type === "boost_gate") {
       part = this.createBoostGate(centerX, centerY, 80, 20, 0);
+    } else if (type === "bounce_ramp") {
+      part = this.createBounceRamp(centerX, centerY, 300, 20, 0);
     }
 
     if (part) this.selectParts([part]);
@@ -809,6 +884,12 @@ export class MainScene extends Phaser.Scene {
   createRamp(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number) {
     const partId = id || Math.random().toString();
     const part = createRamp(this, x, y, w, h, angle, partId, color);
+    return this.registerPart(part);
+  }
+
+  createBounceRamp(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number) {
+    const partId = id || Math.random().toString();
+    const part = createBounceRamp(this, x, y, w, h, angle, partId, color);
     return this.registerPart(part);
   }
 
@@ -1306,6 +1387,8 @@ export class MainScene extends Phaser.Scene {
         this.createScatterGate(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
       } else if (s.type === "boost_gate") {
         this.createBoostGate(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color, s.boostAmount);
+      } else if (s.type === "bounce_ramp") {
+        this.createBounceRamp(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
       }
     });
     this.updateSelectionBox();

@@ -6,6 +6,7 @@ import { createPin } from "./Pin"
 import { createRamp } from "./Ramp"
 import { createScatterGate } from "./ScatterGate"
 import { createSpinner } from "./Spinner"
+import { createBounceRamp } from "./BounceRamp"
 
 const partCreators = {
   ramp: createRamp,
@@ -16,4 +17,5 @@ const partCreators = {
   marble: createMarble,
   scatter_gate: createScatterGate,
   boost_gate: createBoostGate,
+  bounce_ramp: createBounceRamp,
 };

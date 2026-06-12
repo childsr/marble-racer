@@ -47,6 +47,8 @@ function createPartFromData(
     return scene.createScatterGate(x, y, w, h, baseAngle, id, color);
   } else if (type === "boost_gate") {
     return scene.createBoostGate(x, y, w, h, baseAngle, id, color, boostAmount);
+  } else if (type === "bounce_ramp") {
+    return scene.createBounceRamp(x, y, w, h, baseAngle, id, color);
   }
 }
 
@@ -238,6 +240,13 @@ const actionHandlers = {
           }
           if (p.type === "marble" && (p.graphic as any).glow) {
             (p.graphic as any).glow.setTint(payload.color);
+          }
+          if (p.type === "bounce_ramp" && p.graphic) {
+            const container = p.graphic as Phaser.GameObjects.Container;
+            const baseRect = container.list[0] as Phaser.GameObjects.Rectangle;
+            if (baseRect && baseRect.fillColor !== undefined) {
+              baseRect.fillColor = payload.color;
+            }
           }
           newSelection.push(p);
         } else if (payload.w !== undefined || payload.h !== undefined) {
