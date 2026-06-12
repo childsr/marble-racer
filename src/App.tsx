@@ -101,6 +101,7 @@ export default function App() {
   const [simSpeed, setSimSpeed] = useState<number>(1.0);
 
   const [userTracks, setUserTracks] = useState<{ id: string, name: string, data: any }[]>([]);
+  const [trackName, setTrackName] = useState("Untitled Track");
   const [isTrackMenuOpen, setIsTrackMenuOpen] = useState(false);
   const trackMenuRef = useRef<HTMLDivElement>(null);
   const trackButtonRef = useRef<HTMLButtonElement>(null);
@@ -120,7 +121,7 @@ export default function App() {
       const parsed = JSON.parse(currentStr);
       const newTrack = {
         id: "track_" + Date.now(),
-        name: "Custom Track " + (userTracks.length + 1),
+        name: trackName.trim() || ("Custom Track " + (userTracks.length + 1)),
         data: parsed,
       };
       const updated = [...userTracks, newTrack];
@@ -636,66 +637,24 @@ export default function App() {
       <header className="w-full flex items-center justify-between px-4 py-3 shrink-0 z-10 transition-all relative bg-[#151619] border-b border-white/10">
         <div className="flex gap-2 items-center relative">
           {mode === "edit" ? (
-            <>
-              <button
-                onClick={() => {
-                  sendAction("set-sim-speed", simSpeed);
-                  sendAction("toggle-mode");
-                }}
-                className="flex items-center gap-2 px-6 rounded-full font-semibold transition-all text-white cursor-pointer bg-emerald-600 hover:bg-emerald-500 shadow-md h-[40px] shrink-0"
-              >
-                <Play size={18} className="fill-white" /> Play
-              </button>
-
-              <div className="flex items-stretch rounded-full overflow-hidden border border-white/10 bg-[#1c1d22] p-0.5 select-none shadow-inner h-[40px] shrink-0">
-                {[0.25, 0.5, 1.0].map((speed) => (
-                  <button
-                    key={speed}
-                    onClick={() => {
-                      setSimSpeed(speed);
-                      sendAction("set-sim-speed", speed);
-                    }}
-                    className={`px-4 text-xs font-semibold font-mono rounded-full transition-all cursor-pointer h-full flex items-center justify-center ${
-                      simSpeed === speed
-                        ? "bg-white/15 text-sky-400 shadow-sm"
-                        : "text-white/60 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    {speed}x
-                  </button>
-                ))}
-              </div>
-            </>
+            <button
+              onClick={() => {
+                sendAction("set-sim-speed", simSpeed);
+                sendAction("toggle-mode");
+              }}
+              className="flex items-center gap-2 px-6 rounded-full font-semibold transition-all text-white cursor-pointer bg-emerald-600 hover:bg-emerald-500 shadow-md h-[40px] shrink-0"
+            >
+              <Play size={18} className="fill-white" /> Play
+            </button>
           ) : (
-            <>
-              <button
-                onClick={() => {
-                  sendAction("toggle-mode");
-                }}
-                className="flex items-center gap-2 px-6 rounded-full font-semibold transition-all text-white cursor-pointer bg-[#0ea5e9] hover:bg-sky-400 border border-sky-400/20 shadow-md h-[40px]"
-              >
-                <ChevronLeft size={18} className="stroke-[3]" /> Back
-              </button>
-
-              <div className="flex items-stretch rounded-full overflow-hidden border border-white/10 bg-[#1c1d22] p-0.5 select-none shadow-inner h-[40px] shrink-0">
-                {[0.25, 0.5, 1.0].map((speed) => (
-                  <button
-                    key={speed}
-                    onClick={() => {
-                      setSimSpeed(speed);
-                      sendAction("set-sim-speed", speed);
-                    }}
-                    className={`px-4 text-xs font-semibold font-mono rounded-full transition-all cursor-pointer h-full flex items-center justify-center ${
-                      simSpeed === speed
-                        ? "bg-white/15 text-sky-400 shadow-sm"
-                        : "text-white/60 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    {speed}x
-                  </button>
-                ))}
-              </div>
-            </>
+            <button
+              onClick={() => {
+                sendAction("toggle-mode");
+              }}
+              className="flex items-center gap-2 px-6 rounded-full font-semibold transition-all text-white cursor-pointer bg-[#0ea5e9] hover:bg-sky-400 border border-sky-400/20 shadow-md h-[40px]"
+            >
+              <ChevronLeft size={18} className="stroke-[3]" /> Back
+            </button>
           )}
         </div>
 
@@ -704,42 +663,21 @@ export default function App() {
             type="text"
             placeholder="Track Name"
             className="w-full bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all rounded-full px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-white/30 focus:bg-white/10 text-center font-medium"
-            defaultValue="Untitled Track"
+            value={trackName}
+            onChange={(e) => setTrackName(e.target.value)}
           />
         </div>
 
         <div className="flex gap-4 items-center">
-          {/* Debug View Toggle Switch */}
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full select-none shadow-inner shrink-0">
-            <Eye size={14} className={showDebugBodies ? "text-emerald-400 animate-pulse" : "text-white/40"} />
-            <span className="text-[11px] font-semibold text-white/70 uppercase tracking-wide">
-              Debug
-            </span>
-            <button
-              id="debug-toggle-switch"
-              onClick={() => sendAction("toggle-debug-rendering")}
-              className={`w-8 h-4.5 rounded-full transition-colors relative focus:outline-none cursor-pointer flex items-center ${
-                showDebugBodies ? "bg-emerald-500" : "bg-white/10"
-              }`}
-              title="Toggle Physics Wireframes"
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform duration-200 ${
-                  showDebugBodies ? "translate-x-3.5" : "translate-x-0"
-                }`}
-              />
-            </button>
-          </div>
-
           {mode === "edit" && (
             <div className="flex gap-2 items-center overflow-x-auto">
               <button
                 ref={trackButtonRef}
                 onClick={() => setIsTrackMenuOpen(!isTrackMenuOpen)}
-                className={`flex items-center gap-2 px-4 py-2 ${isTrackMenuOpen ? "bg-[#25282e]" : "bg-white/10 hover:bg-white/20"} rounded-full font-medium transition-all shadow-lg shrink-0 cursor-pointer`}
+                className={`flex items-center justify-center p-2.5 ${isTrackMenuOpen ? "bg-[#25282e]" : "bg-white/10 hover:bg-white/20"} rounded-full font-medium transition-all shadow-lg shrink-0 cursor-pointer`}
+                title="Tracks"
               >
                 <FolderOpen size={18} className="text-amber-400" />
-                <span>Tracks</span>
               </button>
 
               <button
@@ -1187,6 +1125,7 @@ export default function App() {
                       key={track.id}
                       onClick={() => {
                         sendAction("load-built-in-track", track.id);
+                        setTrackName(track.name);
                         setIsTrackMenuOpen(false);
                       }}
                       className="w-full flex items-center justify-between gap-3 px-3 py-2.5 bg-white/5 hover:bg-white/10 rounded-lg transition-all text-sm font-medium"
@@ -1229,6 +1168,7 @@ export default function App() {
                           className="flex-1 flex items-center gap-3 text-sm font-medium cursor-pointer text-left"
                           onClick={() => {
                             sendAction("load-state", track.data);
+                            setTrackName(track.name);
                             setIsTrackMenuOpen(false);
                           }}
                         >
@@ -1239,6 +1179,7 @@ export default function App() {
                           <button
                             onClick={() => {
                               sendAction("load-state", track.data);
+                              setTrackName(track.name);
                               setIsTrackMenuOpen(false);
                             }}
                             className="p-1.5 rounded-md text-sky-400 hover:bg-sky-400/20 transition-colors"
