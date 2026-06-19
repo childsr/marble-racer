@@ -34,7 +34,11 @@ import {
   Map,
   Download,
   Save,
-  FolderOpen
+  FolderOpen,
+  Zap,
+  ArrowUpRight,
+  Crosshair,
+  Orbit
 } from "lucide-react";
 
 import { motion } from "motion/react";
@@ -1120,6 +1124,11 @@ export default function App() {
                     { id: "default", name: "Basic Track", icon: <Map size={14} className="text-gray-400" /> },
                     { id: "plinko", name: "Plinko Board", icon: <Layers size={14} className="text-gray-400" /> },
                     { id: "halfpipe", name: "Halfpipe", icon: <RefreshCw size={14} className="text-gray-400" /> },
+                    { id: "cascade", name: "Cascade", icon: <TrendingDown size={14} className="text-gray-400" /> },
+                    { id: "bounce_house", name: "Bounce House", icon: <ArrowUpRight size={14} className="text-gray-400" /> },
+                    { id: "boost_circuit", name: "Boost Circuit", icon: <Zap size={14} className="text-gray-400" /> },
+                    { id: "pin_drop", name: "Pin Drop", icon: <Crosshair size={14} className="text-gray-400" /> },
+                    { id: "scatter_funnel", name: "Scatter Funnel", icon: <Orbit size={14} className="text-gray-400" /> },
                   ].map((track) => (
                     <button
                       key={track.id}

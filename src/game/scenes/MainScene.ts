@@ -13,6 +13,11 @@ import { handleEditorAction } from "./handleEditorAction"
 import { loadDefaultTrack } from "../tracks/default";
 import { loadHalfpipeTrack } from "../tracks/halfpipe";
 import { loadPlinkoTrack } from "../tracks/plinko";
+import { loadCascadeTrack } from "../tracks/cascade";
+import { loadBounceHouseTrack } from "../tracks/bounce_house";
+import { loadBoostCircuitTrack } from "../tracks/boost_circuit";
+import { loadPinDropTrack } from "../tracks/pin_drop";
+import { loadScatterFunnelTrack } from "../tracks/scatter_funnel";
 
 const MARBLE_RESTITUTION = 0.7;
 
@@ -1459,6 +1464,16 @@ export class MainScene extends Phaser.Scene {
       loadPlinkoTrack(this);
     } else if (trackName === "halfpipe") {
       loadHalfpipeTrack(this);
+    } else if (trackName === "cascade") {
+      loadCascadeTrack(this);
+    } else if (trackName === "bounce_house") {
+      loadBounceHouseTrack(this);
+    } else if (trackName === "boost_circuit") {
+      loadBoostCircuitTrack(this);
+    } else if (trackName === "pin_drop") {
+      loadPinDropTrack(this);
+    } else if (trackName === "scatter_funnel") {
+      loadScatterFunnelTrack(this);
     } else {
       loadDefaultTrack(this);
     }

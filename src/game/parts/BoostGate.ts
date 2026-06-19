@@ -17,22 +17,30 @@ export function createBoostGate(
 
   // 1. Create MatterJS compound body
   // Left post bumper (collidable, static)
-  const leftBumper = scene.matter.add.trapezoid(x - w / 2 + bumperW/2, y, fixedH, bumperW, 0.35, {
-    isStatic: true,
-    friction: 0,
-    restitution: 0.5,
-    label: "boost_gate_bumper",
-    angle: Math.PI / 2
-  });
+  const leftBumper = scene.matter.add.trapezoid(
+    x - w / 2 + bumperW/2, y,
+    fixedH, bumperW, 0.35,
+    {
+      isStatic: true,
+      friction: 0,
+      restitution: 0.5,
+      label: "boost_gate_bumper",
+      angle: Math.PI / 2
+    }
+  );
 
   // Right post bumper (collidable, static)
-  const rightBumper = scene.matter.add.trapezoid(x + w / 2 - bumperW/2, y, fixedH, bumperW, 0.35, {
-    isStatic: true,
-    friction: 0,
-    restitution: 0.5,
-    label: "boost_gate_bumper",
-    angle: -Math.PI / 2
-  });
+  const rightBumper = scene.matter.add.trapezoid(
+    x + w / 2 - bumperW/2, y,
+    fixedH, bumperW, 0.35,
+    {
+      isStatic: true,
+      friction: 0,
+      restitution: 0.5,
+      label: "boost_gate_bumper",
+      angle: -Math.PI / 2
+    }
+  );
 
   // Middle force field sensor (non-collidable, static sensor)
   const mainSensor = scene.matter.add.rectangle(x, y, w - 20, 1, {
