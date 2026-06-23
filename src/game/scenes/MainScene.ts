@@ -5,6 +5,7 @@ import { createPin } from "../parts/Pin";
 import { createSpinner, updateSpinner } from "../parts/Spinner";
 import { createFinishZone } from "../parts/FinishZone";
 import { createMarble } from "../parts/Marble";
+import { createRainbowMarble } from "../parts/RainbowMarble";
 import { createScatterGate } from "../parts/ScatterGate";
 import { createBoostGate } from "../parts/BoostGate";
 import { createCurvedRamp, rebuildCurvedRamp, getBoundingBox } from "../parts/CurvedRamp";
@@ -366,7 +367,7 @@ export class MainScene extends Phaser.Scene {
         if (part.type === "spinner") {
           this.matter.body.setAngle(part.body, part.baseAngle);
           part.graphic.setRotation(part.baseAngle);
-        } else if (part.type === "marble") {
+        } else if (part.type === "marble" || part.type === "rainbow_marble") {
           part.body.isSensor = true;
         }
         this.applyPartRenderingMode(part);
@@ -530,12 +531,22 @@ export class MainScene extends Phaser.Scene {
           glow.x = marble.position.x;
           glow.y = marble.position.y;
         }
+
+        if ((graphic as any).isRainbow) {
+          let hue = ((graphic as any).hue || 0) + 4.5;
+          if (hue >= 360) hue -= 360;
+          (graphic as any).hue = hue;
+          const colorObj = Phaser.Display.Color.HSVToRGB(hue / 360, 1, 1);
+          const colorInt = Phaser.Display.Color.GetColor(colorObj.r, colorObj.g, colorObj.b);
+          (graphic as Phaser.GameObjects.Arc).setFillStyle(colorInt);
+          if (glow) glow.setTint(colorInt);
+        }
       }
     }
 
     // Sync positions and settings for all edit-mode marble glows
     this.parts.forEach(part => {
-      if (part.type === "marble" && part.graphic) {
+      if ((part.type === "marble" || part.type === "rainbow_marble") && part.graphic) {
         const glow = (part.graphic as any).glow;
         if (glow) {
           glow.x = part.graphic.x;
@@ -792,6 +803,8 @@ export class MainScene extends Phaser.Scene {
       part = this.createFinishZone(centerX, centerY, 150, 80, 0);
     } else if (type === "marble") {
       part = this.createMarble(centerX, centerY, 14, 14, 0);
+    } else if (type === "rainbow_marble") {
+      part = this.createRainbowMarble(centerX, centerY, 14, 14, 0);
     } else if (type === "scatter_gate") {
       part = this.createScatterGate(centerX, centerY, 80, 20, 0);
     } else if (type === "boost_gate") {
@@ -925,6 +938,12 @@ export class MainScene extends Phaser.Scene {
   createMarble(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number) {
     const partId = id || Math.random().toString();
     const part = createMarble(this, x, y, w, h, angle, partId, color);
+    return this.registerPart(part);
+  }
+
+  createRainbowMarble(x: number, y: number, w: number, h: number, angle: number, id?: string, color?: number) {
+    const partId = id || `rainbow_marble_${Date.now()}_${Math.random()}`;
+    const part = createRainbowMarble(this, x, y, w, h, angle, partId, color);
     return this.registerPart(part);
   }
 
@@ -1223,7 +1242,7 @@ export class MainScene extends Phaser.Scene {
 
           this.selectionBoxes.push(handle);
         });
-      } else if (part.type === "pin" || part.type === "marble") {
+      } else if (part.type === "pin" || part.type === "marble" || part.type === "rainbow_marble") {
         const radius = part.w + 5;
         shape = this.add.circle(x, y, radius, 0x00ff00, 0);
         shape.setStrokeStyle(2, 0x00ff00, 0.5);
@@ -1388,6 +1407,8 @@ export class MainScene extends Phaser.Scene {
         this.createFinishZone(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
       } else if (s.type === "marble") {
         this.createMarble(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
+      } else if (s.type === "rainbow_marble") {
+        this.createRainbowMarble(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
       } else if (s.type === "scatter_gate") {
         this.createScatterGate(s.x, s.y, s.w, s.h, s.baseAngle, s.id, s.color);
       } else if (s.type === "boost_gate") {
@@ -1483,7 +1504,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   spawnMarbles() {
-    const marbleParts = this.parts.filter((p) => p.type === "marble");
+    const marbleParts = this.parts.filter((p) => p.type === "marble" || p.type === "rainbow_marble");
     marbleParts.forEach((part) => {
       const x = part.graphic.x;
       const y = part.graphic.y;
@@ -1500,6 +1521,11 @@ export class MainScene extends Phaser.Scene {
       const graphic = this.add.circle(x, y, 14, color);
       graphic.setDepth(50);
       graphic.setVisible(true);
+
+      if (part.type === "rainbow_marble") {
+        (graphic as any).isRainbow = true;
+        (graphic as any).hue = Math.random() * 360;
+      }
 
       const glow = this.add.image(x, y, "radial_glow");
       glow.setTint(color);
@@ -1556,13 +1582,13 @@ export class MainScene extends Phaser.Scene {
   }
 
   applyPartRenderingMode(part: Part) {
-    if (part.type === "marble" && this.mode === "play") {
+    if ((part.type === "marble" || part.type === "rainbow_marble") && this.mode === "play") {
       part.graphic.setVisible(false);
       this.tweens.killTweensOf(part.graphic);
       part.graphic.setScale(1);
     } else {
       part.graphic.setVisible(true);
-      if (part.type === "marble" && this.mode === "edit") {
+      if ((part.type === "marble" || part.type === "rainbow_marble") && this.mode === "edit") {
         if (!this.tweens.isTweening(part.graphic)) {
           this.tweens.add({
             targets: part.graphic,

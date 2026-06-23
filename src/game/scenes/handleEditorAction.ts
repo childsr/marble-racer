@@ -43,6 +43,8 @@ function createPartFromData(
     return scene.createFinishZone(x, y, w, h, baseAngle, id, color);
   } else if (type === "marble") {
     return scene.createMarble(x, y, w, h, baseAngle, id, color);
+  } else if (type === "rainbow_marble") {
+    return scene.createRainbowMarble(x, y, w, h, baseAngle, id, color);
   } else if (type === "scatter_gate") {
     return scene.createScatterGate(x, y, w, h, baseAngle, id, color);
   } else if (type === "boost_gate") {
@@ -179,7 +181,7 @@ const actionHandlers = {
       const list = [...scene.selectedParts];
 
       list.forEach((p) => {
-        if (p.type === "marble") {
+        if (p.type === "marble" || p.type === "rainbow_marble") {
           const dx = (p.graphic.x - cx) * factor;
           const dy = (p.graphic.y - cy) * factor;
           const nx = cx + dx;
@@ -238,7 +240,7 @@ const actionHandlers = {
           } else if (p.graphic && typeof p.graphic.fillColor !== "undefined") {
             p.graphic.fillColor = payload.color;
           }
-          if (p.type === "marble" && (p.graphic as any).glow) {
+          if ((p.type === "marble" || p.type === "rainbow_marble") && (p.graphic as any).glow) {
             (p.graphic as any).glow.setTint(payload.color);
           }
           if (p.type === "bounce_ramp" && p.graphic) {

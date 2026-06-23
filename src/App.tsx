@@ -56,6 +56,8 @@ const getPartTypeName = (type: string | null): string => {
       return "Finish Zone";
     case "marble":
       return "Marble";
+    case "rainbow_marble":
+      return "Rainbow Marble";
     case "scatter_gate":
       return "Scatter Gate";
     case "boost_gate":
@@ -198,6 +200,24 @@ export default function App() {
           <circle cx="${W / 2}" cy="${H / 2}" r="${14 * S}" fill="#ff4444" />
         </svg>
       `;
+    } else if (type === "rainbow_marble") {
+      W = 28 * S;
+      H = 28 * S;
+      html = `
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow: visible; opacity: 0.65;">
+          <circle cx="${W / 2}" cy="${H / 2}" r="${14 * S}" fill="url(#rainbowGradGhost)" stroke="#fff" stroke-width="0.5" />
+          <defs>
+            <linearGradient id="rainbowGradGhost" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ff0000" />
+              <stop offset="20%" stop-color="#ffff00" />
+              <stop offset="40%" stop-color="#00ff00" />
+              <stop offset="60%" stop-color="#00ffff" />
+              <stop offset="80%" stop-color="#0000ff" />
+              <stop offset="100%" stop-color="#ff00ff" />
+            </linearGradient>
+          </defs>
+        </svg>
+      `;
     } else if (type === "spinner") {
       W = 300 * S;
       H = 25 * S;
@@ -277,7 +297,7 @@ export default function App() {
     }
 
     let dragYOffset = H / 2;
-    if (type === "pin" || type === "marble") {
+    if (type === "pin" || type === "marble" || type === "rainbow_marble") {
       dragYOffset = H / 2 + 20;
     }
 
@@ -545,13 +565,13 @@ export default function App() {
             changed = true;
             break;
           case "Period": // . or > (Clockwise)
-            if (selectedPartType === "pin" || selectedPartType === "marble") return;
+            if (selectedPartType === "pin" || selectedPartType === "marble" || selectedPartType === "rainbow_marble") return;
             event.preventDefault();
             sendAction("rotate-part", rotateAmount);
             changed = true;
             break;
           case "Comma": // , or < (Counterclockwise)
-            if (selectedPartType === "pin" || selectedPartType === "marble") return;
+            if (selectedPartType === "pin" || selectedPartType === "marble" || selectedPartType === "rainbow_marble") return;
             event.preventDefault();
             sendAction("rotate-part", -rotateAmount);
             changed = true;
@@ -1081,6 +1101,39 @@ export default function App() {
                   <span className="text-xs font-semibold text-white leading-tight">Marble</span>
                 </div>
               </button>
+              <button
+                onClick={() => {
+                  sendAction("add-part", "rainbow_marble");
+                  setIsAddMenuOpen(false);
+                }}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", "rainbow_marble");
+                  setupDragGhost("rainbow_marble", e);
+                }}
+                className="flex flex-col items-center justify-center gap-1.5 p-2 bg-[#2d3139]/40 hover:bg-[#2d3139]/80 border border-white/5 hover:border-white/10 rounded-lg transition-all cursor-pointer select-none active:opacity-75 aspect-square text-center"
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 40 40" className="w-10 h-10 select-none pointer-events-none">
+                    <circle cx="20" cy="20" r="10" fill="url(#rainbowGrad)" opacity="0.15" id="rainbow_marble_svg_shadow" />
+                    <circle cx="20" cy="20" r="8" fill="url(#rainbowGrad)" stroke="#fff" strokeWidth="0.5" id="rainbow_marble_svg_body" />
+                    <circle cx="17.5" cy="17.5" r="1.5" fill="#fff" opacity="0.8" id="rainbow_marble_svg_glare" />
+                    <defs>
+                      <linearGradient id="rainbowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#ff0000" />
+                        <stop offset="20%" stopColor="#ffff00" />
+                        <stop offset="40%" stopColor="#00ff00" />
+                        <stop offset="60%" stopColor="#00ffff" />
+                        <stop offset="80%" stopColor="#0000ff" />
+                        <stop offset="100%" stopColor="#ff00ff" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+                <div className="flex flex-col items-center justify-center min-w-0">
+                  <span className="text-[10px] font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-400 via-green-400 to-blue-400 leading-tight">Rainbow</span>
+                </div>
+              </button>
             </div>
           </motion.div>
         )}
@@ -1235,7 +1288,7 @@ export default function App() {
               </div>
             </div>
 
-            {selectedPartType !== "marble" && selectedPartType !== "pin" && (
+            {selectedPartType !== "marble" && selectedPartType !== "rainbow_marble" && selectedPartType !== "pin" && (
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => sendAction("rotate-part", 15)}
@@ -1252,7 +1305,7 @@ export default function App() {
               </div>
             )}
 
-            {selectedPartType !== "marble" && selectedPartType !== "curved_ramp" && (
+            {selectedPartType !== "marble" && selectedPartType !== "rainbow_marble" && selectedPartType !== "curved_ramp" && (
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => sendAction("scale-part", 1)}
@@ -1270,24 +1323,26 @@ export default function App() {
             )}
 
             <div className="flex flex-col gap-2 mt-2">
-              <div className="flex items-center justify-between bg-white/5 px-3 py-2 rounded-lg">
-                <span className="text-sm font-medium text-white/80">Color</span>
-                <input
-                  type="color"
-                  value={
-                    selectedColor !== null && selectedColor !== undefined
-                      ? "#" + selectedColor.toString(16).padStart(6, "0")
-                      : "#ffffff"
-                  }
-                  onChange={(e) => {
-                    const color = parseInt(e.target.value.replace("#", ""), 16);
-                    sendAction("change-part-property", { color });
-                  }}
-                  onBlur={() => sendAction("save-state")}
-                  className="w-8 h-8 rounded shrink-0 cursor-pointer border border-white/20 bg-transparent ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 object-cover"
-                  style={{ padding: 0 }}
-                />
-              </div>
+              {selectedPartType !== "rainbow_marble" && (
+                <div className="flex items-center justify-between bg-white/5 px-3 py-2 rounded-lg">
+                  <span className="text-sm font-medium text-white/80">Color</span>
+                  <input
+                    type="color"
+                    value={
+                      selectedColor !== null && selectedColor !== undefined
+                        ? "#" + selectedColor.toString(16).padStart(6, "0")
+                        : "#ffffff"
+                    }
+                    onChange={(e) => {
+                      const color = parseInt(e.target.value.replace("#", ""), 16);
+                      sendAction("change-part-property", { color });
+                    }}
+                    onBlur={() => sendAction("save-state")}
+                    className="w-8 h-8 rounded shrink-0 cursor-pointer border border-white/20 bg-transparent ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 object-cover"
+                    style={{ padding: 0 }}
+                  />
+                </div>
+              )}
 
               {(selectedPartType === "finish_zone" || selectedPartType === "ramp" || selectedPartType === "scatter_gate" || selectedPartType === "boost_gate" || selectedPartType === "bounce_ramp") && selectedPartW !== null && selectedPartH !== null && (
                 <div className="border border-white/10 rounded-lg p-3 bg-white/5 flex flex-col gap-3 font-sans">

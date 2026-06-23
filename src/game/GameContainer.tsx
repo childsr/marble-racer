@@ -110,7 +110,7 @@ export const GameContainer = () => {
       y = localY / scale;
     }
 
-    if (type === "marble" || type === "pin") {
+    if (type === "marble" || type === "rainbow_marble" || type === "pin") {
       const scale = actualAspect > virtualAspect ? actualHeight / virtualHeight : actualWidth / virtualWidth;
       y -= 20 / scale;
     }
